@@ -41,9 +41,7 @@ Add a fenced code block with the language `wavejson`:
 ```
 ````
 
-In reading view you get a diagram like this:
-
-![Diagram with groups and edges](assets/screenshot-edges.png)
+In reading view the block renders as a diagram (see the screenshot at the top of this page).
 
 ### Editing
 
