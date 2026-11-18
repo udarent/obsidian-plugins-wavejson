@@ -5,6 +5,6 @@
   "minAppVersion": "1.4.0",
   "description": "Render WaveJSON timing diagrams in your notes and edit them in place.",
   "author": "udarent",
-  "authorUrl": "https://github.com/udarent/TimingBench",
+  "authorUrl": "https://github.com/udarent",
   "isDesktopOnly": false
 }
