@@ -9,6 +9,16 @@ only when they change what you see.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.1] - 2026-11-18
+
+### Changed
+
+- No functional changes. Documentation, code comments and the release workflow are now
+  in English.
+- Re-published so that a GitHub release matches the manifest version. The community
+  submission check reported "no release matches your manifest version" for 0.1.0, even
+  though the release existed and was tagged correctly.
+
 ## [0.1.0] - 2026-11-18
 
 First release.
@@ -40,4 +50,5 @@ First release.
 - The note is written only when editing ends. Returning to a cached tab keeps
   the uncommitted changes, and they are saved when you exit editing.
 
+[0.1.1]: https://github.com/udarent/obsidian-plugins-wavejson/compare/0.1.0...0.1.1
 [0.1.0]: https://github.com/udarent/obsidian-plugins-wavejson/releases/tag/0.1.0
