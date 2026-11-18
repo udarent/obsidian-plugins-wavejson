@@ -1,0 +1,104 @@
+/* 插件专属样式：只补主站 CSS 里没有的「笔记内」形态。
+   主站 CSS 会被构建脚本搬进 shadow root（:root → :host，body → .tb-root），
+   这里的规则同样注入 shadow root，因此不会影响 Obsidian 界面。 */
+
+/* --- 外壳：隔离宿主，给代码块一个稳定盒 ------------------------------------------------- */
+.tb-shell {
+  position: relative;
+  display: block;
+  width: 100%;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--background-primary, #fff);
+}
+.tb-root {
+  position: relative;
+  height: auto;
+  min-height: 0;
+}
+
+/* --- 预览态：只留波形，不占编辑 chrome -------------------------------------------------- */
+.tb-root:not(.is-editing) .topbar,
+.tb-root:not(.is-editing) .dockzone,
+.tb-root:not(.is-editing) .pane.src {
+  display: none;
+}
+.tb-root:not(.is-editing) .app {
+  display: block;
+  height: auto;
+}
+.tb-root:not(.is-editing) .pane.diagram {
+  display: block;
+  height: auto;
+}
+.tb-root:not(.is-editing) .svgwrap {
+  height: auto;
+  overflow: visible;
+}
+.tb-root:not(.is-editing) .svgwrap svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* --- 编辑态：给一个固定视口，编辑器按它算布局 ------------------------------------------ */
+.tb-root.is-editing {
+  height: min(72vh, 560px);
+  min-height: 380px;
+}
+.tb-root.is-editing .app {
+  display: grid;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* --- 铅笔 / 对勾：预览与编辑共用同一个位置 -------------------------------------------- */
+.tb-toggle {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 40;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity .12s ease;
+}
+.tb-shell:hover .tb-toggle,
+.tb-root.is-editing .tb-toggle,
+.tb-toggle:focus-visible {
+  opacity: 1;
+}
+.tb-toggle:hover {
+  color: var(--ink);
+  background: var(--hover);
+}
+.tb-toggle svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.tb-toggle .ico-done { display: none; }
+.tb-root.is-editing .tb-toggle .ico-done { display: block; }
+.tb-root.is-editing .tb-toggle .ico-edit { display: none; }
+
+/* --- 解析失败：一行提示，不吞原文 ------------------------------------------------------ */
+.tb-error {
+  padding: 8px 10px;
+  font: 12px/1.5 var(--sans);
+  color: var(--err);
+  background: var(--err-bg);
+  border-top: 1px solid var(--line);
+}

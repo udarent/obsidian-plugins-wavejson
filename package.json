@@ -1,0 +1,14 @@
+{
+  "name": "wavejson",
+  "version": "0.1.0",
+  "private": true,
+  "description": "WaveJSON for Obsidian: render and edit WaveJSON timing diagrams inline.",
+  "scripts": {
+    "build": "node esbuild.config.mjs",
+    "dev": "node esbuild.config.mjs --watch",
+    "sync": "node sync.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0"
+  }
+}

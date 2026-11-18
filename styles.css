@@ -1,0 +1,2 @@
+/* 样式全部由 main.js 注入 shadow root（见 esbuild.config.mjs 的作用域转换），
+   本文件只为满足 Obsidian「插件目录可含 styles.css」的惯例而留空。 */
