@@ -1,108 +1,129 @@
 # WaveJSON
 
-WaveJSON 的 Obsidian 插件（由 [TimingBench](https://github.com/udarent/TimingBench) 提供渲染内核）：在笔记里写 `wavejson` 代码块，直接看到时序图；点右上角铅笔就地编辑，退出时写回代码块源码。
+An Obsidian plugin that renders [WaveJSON](https://wavedrom.com/tutorial.html) timing diagrams inside your notes — and lets you edit them in place, without leaving the note.
 
-渲染与编辑复用 TimingBench 的内核（同一套 IR、同一套字形规则），所以你在笔记里看到的图与 [编辑器页面](https://udarent.github.io/TimingBench/editor.html) 完全一致。
+![A WaveJSON block rendered in a note](assets/screenshot-note.png)
 
-本仓库只放插件外壳（代码块处理器 + 挂载 / 写回）。渲染内核不在本仓库，构建时要能读到它（见[开发](#开发)）。
+## Features
 
-## 安装
+- **Write, don't draw.** Put a `wavejson` code block in any note and the diagram appears in reading view.
+- **Edit in place.** Click the pencil, change the waveform, click the checkmark. The code block is updated for you — no round trip to an external editor.
+- **Renders like the original.** Same arrow shapes, group brackets, phase shifts and data labels as [WaveDrom](https://wavedrom.com/).
+- **Fits your note.** The diagram scales to the width of the code block; `Ctrl`/`⌘` + scroll to zoom.
+- **Stays out of the way.** Styles are scoped inside the plugin, so your theme and the plugin never fight.
 
-1. 取本仓库的 `manifest.json`、`main.js`、`versions.json` 三个文件（`main.js` 已打包好，运行时不需要 `node_modules`、不需要联网）。
-2. 放进 vault：
+## Installation
 
-   ```text
-   <your-vault>/.obsidian/plugins/wavejson/
-     manifest.json
-     main.js
-     versions.json
-   ```
+### BRAT (recommended while the plugin is not in the community list)
 
-3. Obsidian → 设置 → 第三方插件 → 关闭安全模式 → 启用 **WaveJSON**。
+1. Install [BRAT](https://github.com/TfTHacker/obsidian42-brat) and enable it.
+2. Run **BRAT: Add a beta plugin for testing**.
+3. Enter `udarent/obsidian-plugins-wavejson` and confirm.
 
-## 用法
+### Manual
+
+1. Download `manifest.json`, `main.js` and `styles.css` from the [latest release](https://github.com/udarent/obsidian-plugins-wavejson/releases/latest).
+2. Put all three in `<your-vault>/.obsidian/plugins/wavejson/`.
+3. Reload Obsidian (`Ctrl`/`⌘` + `R`), then enable **WaveJSON** under *Settings → Community plugins*.
+
+> This plugin is **not** in the community plugin list yet, so it will not show up in *Browse*.
+
+## Usage
+
+Add a fenced code block with the language `wavejson`:
 
 ````markdown
 ```wavejson
 { "signal": [
-  { "name": "clk", "wave": "p...." },
-  { "name": "bus", "wave": "x.34.", "data": ["head", "body"] }
+  { "name": "clk",  "wave": "p......" },
+  { "name": "data", "wave": "x.34.5x", "data": ["head", "body", "tail"] }
 ] }
 ```
 ````
 
-- **预览**：默认只显示波形，不占编辑按钮条；鼠标移到卡片上才出现右上角铅笔。
-- **编辑**：点铅笔进入编辑（只波形）。改完点对勾或按 `Esc` 退出，源码写回代码块。
-- **切源码**：编辑态按顶栏 `{ }` 可在「只波形 / 波形 + 源码」之间切。
-- **缩放**：`Ctrl` / `⌘` + 滚轮（触控板捏合同一条路）。
-- **解析失败**：卡片底部给一行红字英文提示（`Draft: …`），波形区留空；改对之后提示自动消失，原文一个字都不会丢。
-- **非法字符不报错**：`wave` 里不在字表（`0 1 x z u d p P n N h l H L = 2…9`）内的字符会被当成空槽静默忽略，照常出图 —— 这是内核的容错口径，不是缺陷。
+In reading view you get a diagram like this:
 
-## 已知限制
+![Diagram with groups and edges](assets/screenshot-edges.png)
 
-- 只在**退出编辑**时写回。编辑途中切走笔记，本次改动不会保留 —— 这是为了避免「写入 → Obsidian 重渲染代码块 → 编辑器被销毁」的循环。
-- 编辑态固定高度 `min(72vh, 560px)`；预览态按内容高度自适应。
-- 图宽度跟随代码块宽度等比缩放，不做横向滚动。
+### Editing
 
-## 开发
+- Hover the diagram and click the **pencil** in the top-right corner.
+- Change the source, or click directly on waveform cells.
+- Click the **checkmark** (or press `Esc`) to leave editing. The code block is rewritten with your changes.
+- While editing, the toolbar offers undo, redo, split direction, and a source/diagram toggle.
 
-**先准备内核**：构建读的是 `../TimingBench/src/`，所以要把内核仓库 clone 到本仓库**旁边**（同级目录）：
+The file is only written when you **leave** editing — the plugin never writes to your vault while you type.
+
+### Supported syntax
+
+Each object in the `signal` array is a row:
+
+| Field | Meaning |
+|---|---|
+| `name` | Row label |
+| `wave` | Waveform string — one character per time slot |
+| `data` | Labels for bus rows, in order (`"x.34."` + `["head","body"]` → `3` = head, `4` = body) |
+| `node` | Anchor letters used by `edge` (`.a....` puts anchor `a` in slot 1) |
+| `phase` | Shift the row left (`0.5`) or right (`-0.5`) by a fraction of a slot |
+| `period` | Stretch each character across `period` slots |
+
+Common `wave` characters: `0`/`1` low/high, `x` undefined, `z` high-impedance, `p`/`P` positive clock, `n`/`N` negative clock, `d`/`u` falling/rising edge, `=`/`2`–`9` data, `.` hold previous value.
+
+Groups, blank rows and edges:
+
+```json
+{ "signal": [
+  { "name": "a", "wave": "01....", "node": ".a...." },
+  { "name": "b", "wave": "0..1..", "node": "...b.." },
+  {},
+  ["bus", { "name": "d0", "wave": "x.3.x" }]
+], "edge": ["a~>b", "b->a"] }
+```
+
+`edge` entries connect **node anchors**, not row names — a row without a `node` field cannot be an endpoint, and such an edge is skipped silently.
+
+## When a diagram fails to parse
+
+If the source has a syntax error, the diagram area is left empty and a red line appears under the block:
+
+![Parse error shown below the block](assets/screenshot-error.png)
+
+The message comes straight from the parser (`Draft: expected , or ] @48 …`). Nothing is lost — fix the JSON and the message disappears.
+
+Two behaviours worth knowing:
+
+- **Unknown characters in `wave` are ignored**, not reported. `0@1` renders as if the `@` were not there. That is the parser's tolerant mode, not a bug.
+- **Only syntax errors are reported.** A structurally valid but visually wrong diagram will simply look wrong.
+
+## Limitations
+
+- The block is written back **only** when you leave editing. If you switch to another note mid-edit and return to the *same tab* (Obsidian keeps the view alive), your unsaved changes are still there and will be saved when you click the checkmark.
+- The editing area has a fixed height of `min(72vh, 560px)`.
+- Diagrams are not searchable — Obsidian only indexes the code block source.
+
+## Development
+
+The renderer and editor come from [TimingBench](https://github.com/udarent/TimingBench); this repository only contains the plugin shell. To build, clone both repositories side by side:
 
 ```text
 <workspace>/
-  TimingBench/          # https://github.com/udarent/TimingBench
-  obsidian-plugins-wavejson/   # 本仓库
+  TimingBench/                    # renderer + editor core
+  obsidian-plugins-wavejson/      # this repo
 ```
 
 ```bash
 npm install
-npm run build     # 生成 main.js 与 src/_tb-styles.js
-npm run dev       # 监听改动（改完在 Obsidian 里 Ctrl+R 重载插件）
+npm run build     # bundles the core into main.js
+npm run sync      # copies the build into a test vault (--dest=<vault path> to point elsewhere)
 ```
 
-构建做两件事：
+`main.js` is committed: it is what users install, and the release workflow ships it as-is without rebuilding.
 
-1. 把 `../TimingBench/src/styles.css` 做作用域转换（`:root` → `:host`、`body` → `.tb-root`），与 `src/plugin.css` 合并成一段字符串注入 shadow root —— 所以插件样式既不会污染 Obsidian，也不受 Obsidian 主题样式表干扰。
-2. 用 esbuild 把 `../TimingBench/src/editor/index.js` 及其依赖打进 `main.js`（`obsidian` 作为 external）。
+## Credits
 
-`main.js` 是**提交进仓库**的构建产物：用户拿到的就是它，不需要自己构建。
-当前这份由 TimingBench **v0.25.0** 内核构建 —— 内核改了而 `main.js` 没重建，插件就落后于站点，改内核后记得跑一次 `npm run build`。
+- Renderer and editor: [TimingBench](https://github.com/udarent/TimingBench)
+- Diagram syntax: [WaveDrom](https://wavedrom.com/) by Aliaksei Chapyzhenka
 
-`npm run sync` 把产物复制到 `<vault>/.obsidian/plugins/wavejson/`，默认 vault 取同级的 `../test-vault`
-（TimingBench 工作区里的测试仓库）。单独 clone 本仓库时用 `--dest=<vault 路径>` 或环境变量
-`WAVEJSON_VAULT` 指定，不影响构建。
+## License
 
-> 主站交付物仍是「零构建」的多文件静态站点；这里的构建只服务于插件这一分发形态。
-
-## 目录
-
-```text
-manifest.json        插件清单（id / version / minAppVersion）
-versions.json        Obsidian 版本兼容表
-main.js              构建产物（提交进仓库，装插件就是拿它）
-styles.css           占位：样式全部注入 shadow root
-src/main.js          插件入口：代码块处理器 + 挂载 / 切态 / 写回
-src/plugin.css       插件专属样式（预览态、铅笔、编辑态高度、错误条）
-esbuild.config.mjs   构建脚本（含 CSS 作用域转换）
-sync.mjs             把构建产物复制进测试 vault（两仓库并排时用）
-version-bump.mjs     npm version 时同步 manifest.json / versions.json
-.github/workflows/   打 tag 自动发 release（校验版本一致 → 语法自检 → 上传三件套）
-```
-
-## 发布（维护者）
-
-```bash
-npm run build                 # 内核改过就必须重跑，main.js 要一起提交
-git add main.js
-
-npm version patch             # 触发 version-bump：同步 manifest / versions 并打 tag
-git push && git push --tags   # tag 触发 CI：校验版本一致 + node --check + 建 release
-```
-
-CI 不会重新构建（它读不到同级目录的内核源码），发布的是仓库里那份 `main.js` —— 所以
-`npm run build` 后忘了提交，release 资产就会落后于源码。
-
-## 许可
-
-MIT © udarent。变更记录见 [CHANGELOG.md](CHANGELOG.md)；
-渲染内核来自 [TimingBench](https://github.com/udarent/TimingBench)（同为 MIT）。
+[MIT](LICENSE) © udarent
