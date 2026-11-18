@@ -1,8 +1,9 @@
-// 构建：把主站渲染内核打包成 Obsidian 插件（单文件 main.js + styles.css）。
+// Build: bundle the site's renderer core into an Obsidian plugin (single-file main.js).
 //
-// 为什么插件要构建：Obsidian 插件只加载一个 CJS 的 main.js，不能按 ES module 从 vault 里
-// import 主站源码。这里用 esbuild 把 TimingBench/src 打进产物，运行时不依赖外部文件 ——
-// 与主站「零构建」并不冲突：零构建约束的是交付站点，插件产物是另一个分发形态。
+// Why a build step at all: Obsidian loads exactly one CommonJS main.js and cannot import
+// ES modules out of the vault. esbuild bundles TimingBench/src into that file, so the
+// installed plugin has no external runtime dependency. This does not contradict the site's
+// "no build" rule — that rule governs the published site; the plugin is a second format.
 import fs from "fs";
 import path from "path";
 import esbuild from "esbuild";
@@ -13,7 +14,8 @@ const MAIN_CSS = path.join(ROOT, "TimingBench", "src", "styles.css");
 const PLUGIN_CSS = path.join(here, "src", "plugin.css");
 const GEN = path.join(here, "src", "_tb-styles.js");
 
-// 主站 CSS 是给整页写的：:root 的变量表与 body 的布局要搬到 shadow root 里。
+// The site stylesheet is written for a whole page: `:root` variables and the `body`
+// layout have to move into the shadow root.
 function scope(css) {
   return css
     .replace(/:root\{/g, ":host{")

@@ -1,10 +1,10 @@
-// 把构建产物同步进测试 vault。
-// Obsidian 只加载 vault 内的插件副本，所以每次 build 之后都要跑一次。
+// Copy the build output into a test vault.
+// Obsidian only loads the plugin copy inside the vault, so run this after every build.
 //
-// 用法：
-//   npm run sync                              # 默认 ../test-vault（与插件目录同级）
-//   npm run sync -- --dest=D:/notes           # 指定 vault 根目录
-//   WAVEJSON_VAULT=D:/notes npm run sync      # 同上，走环境变量
+// Usage:
+//   npm run sync                              # defaults to ../test-vault (next to this repo)
+//   npm run sync -- --dest=D:/notes           # point at a vault root
+//   WAVEJSON_VAULT=D:/notes npm run sync      # same thing, via environment variable
 import fs from "fs";
 import path from "path";
 
@@ -14,8 +14,8 @@ const vaultArg = flag ? flag.slice("--dest=".length) : process.env.WAVEJSON_VAUL
 const vaultRoot = vaultArg ? path.resolve(vaultArg) : path.resolve(here, "..", "test-vault");
 
 if (!fs.existsSync(vaultRoot)) {
-  console.error("找不到 vault：" + vaultRoot);
-  console.error("默认值是仓库同级的 ../test-vault；单独 clone 本仓库时请用 --dest=<vault 路径> 指定。");
+  console.error("Vault not found: " + vaultRoot);
+  console.error("Default is ../test-vault next to this repo; when cloning it alone, pass --dest=<vault path>.");
   process.exit(1);
 }
 

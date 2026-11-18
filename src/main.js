@@ -1,10 +1,14 @@
-// Obsidian 插件入口：把主站渲染 / 编辑内核挂到 `wavejson` 代码块里。
+// Plugin entry: mounts the renderer/editor core into `wavejson` code blocks.
 //
-// 设计要点
-// - 渲染与编辑复用同一套内核（TimingBench/src），不另写画法，保证与网站上的图一致。
-// - 用 shadow root 隔离：主站 CSS 整份搬进 shadow，Obsidian 的样式进不来、我们的样式也出不去。
-// - 预览态只读（可滚动、可按 Ctrl/⌘ + 滚轮缩放），点右上角铅笔进编辑，退出时把源码写回代码块。
-// - 只在「退出编辑」时写回：编辑期间写 vault 会触发 Obsidian 重渲染代码块，实例被销毁、焦点丢失。
+// Design notes
+// - Rendering and editing share one core (TimingBench/src) — no second drawing path,
+//   so a diagram in a note looks exactly like the same diagram on the website.
+// - Shadow root isolation: the whole site stylesheet goes into the shadow, so Obsidian's
+//   styles cannot leak in and ours cannot leak out.
+// - Preview is read-only (scrollable, Ctrl/⌘ + wheel to zoom). The pencil switches to
+//   editing; leaving editing is what writes the source back into the code block.
+// - Write back *only* on exit: writing to the vault mid-edit makes Obsidian re-render the
+//   code block, which destroys the editor instance and the caret with it.
 
 import { Plugin, Component, Notice } from "obsidian";
 import { createEditor } from "../../TimingBench/src/editor/index.js";
@@ -54,7 +58,7 @@ class Cleanup extends Component {
   }
 }
 
-// 一个代码块的实例：负责挂载内核、切只读 / 编辑、把结果写回笔记。
+// One code block: mounts the core, toggles read-only / editing, writes the result back.
 class Block {
   constructor(plugin, hostEl, mdCtx, source) {
     this.plugin = plugin;
@@ -105,8 +109,8 @@ class Block {
       root: this.rootEl
     });
 
-    // 解析失败的可见出口：卡片里一行英文提示。内核的红点只有 hover 才出 title，
-    // 触摸端与键盘完全拿不到，所以这里必须有一份常驻文字。
+    // Visible channel for parse failures: one line inside the card. The core's red dot
+    // only exposes the reason via `title` (hover), which touch and keyboard users never see.
     const errEl = q("err");
     this.offError = this.ctx.onError((msg) => {
       if (!msg) {
@@ -117,7 +121,7 @@ class Block {
       errEl.textContent = msg;
       errEl.hidden = false;
     });
-    // createEditor 内部的首次解析发生在回调注册之前，补读一次。
+    // The first parse happens inside createEditor, before the callback above existed.
     if (this.ctx.lastError) {
       errEl.textContent = this.ctx.lastError;
       errEl.hidden = false;
@@ -134,7 +138,8 @@ class Block {
       else this.startEdit();
     });
 
-    // 预览态点图不进编辑：看图为主，改图走铅笔（与网站卡片同一约定）。
+    // Clicking the diagram in preview does not enter editing: reading is the default,
+    // editing goes through the pencil (same rule as the website cards).
     this.rootEl.addEventListener("keydown", (e) => {
       if (e.key === "Escape" && this.editing) {
         e.preventDefault();
@@ -142,8 +147,9 @@ class Block {
       }
     });
 
-    // 笔记宽度会变（侧栏开合 / 窗口缩放 / 分屏），宽度一变就要重算 fit。
-    // 只比宽度：高度是我们自己渲染出来的，拿它当信号会自激。
+    // Note width changes with the sidebar, window size and split panes, and fit must be
+    // recomputed each time. Width only: height is our own output, so using it as the signal
+    // would feed back into itself.
     const self = this;
     let lastW = 0;
     let raf = 0;
@@ -167,9 +173,9 @@ class Block {
     this.toggleEl.setAttribute("aria-pressed", "true");
     this.ctx.setReadonly(false);
     this.ctx.setView("diagram");
-    // 进编辑这一帧容器的宽高刚由 CSS 改过（预览态 auto → 编辑态 min(72vh,560px)），
-    // 同步 redraw 读到的 clientWidth 可能还是旧值，画布会按「未撑开的宽度」定格。
-    // 下一帧再算一次，让图按真实宽度重排。
+    // On this frame the container has just been resized by CSS (preview `auto` →
+    // editing `min(72vh, 560px)`), so a synchronous redraw may still read the old
+    // clientWidth and freeze the canvas at the un-expanded width. Recompute next frame.
     const ctx = this.ctx;
     requestAnimationFrame(() => {
       if (this.ctx === ctx && this.editing) ctx.redraw();
@@ -187,14 +193,14 @@ class Block {
     this.commit();
   }
 
-  // 把编辑结果写回代码块。只在退出编辑时调用一次。
+  // Write the edited source back into the code block. Called once, on leaving editing.
   async commit() {
     const next = this.codeEl.value;
     if (next === this.source) return;
     const info = this.mdCtx.getSectionInfo(this.hostEl);
     const file = this.plugin.app.vault.getAbstractFileByPath(this.mdCtx.sourcePath);
     if (!info || !file) {
-      // 拿不到代码块位置（例如导出预览）：不静默丢弃，明确告知。
+      // No section info (e.g. an exported preview): say so instead of dropping silently.
       new Notice("WaveJSON: cannot locate this code block to save into.");
       this.source = next;
       return;
@@ -226,11 +232,11 @@ export default class WaveJSONPlugin extends Plugin {
         block.mount();
       } catch (err) {
         el.textContent = "WaveJSON: " + (err && err.message ? err.message : String(err));
-        // 卡片里只放一行可读提示，完整栈留给控制台排障。
+        // One readable line in the card; the full stack goes to the console.
         console.error("[WaveJSON] mount failed", err);
         return;
       }
-      // 让 Obsidian 在代码块重渲染时回收监听。
+      // Let Obsidian release the listeners when the code block is re-rendered.
       mdCtx.addChild(new Cleanup(() => block.destroy()));
     });
   }

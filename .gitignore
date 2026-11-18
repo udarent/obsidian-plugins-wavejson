@@ -1,16 +1,16 @@
-# 依赖与构建中间产物
+# Dependencies and build intermediates
 node_modules/
 src/_tb-styles.js
 NOTES.md
 dist/
 
-# 注意：main.js 是**提交进仓库**的构建产物（用户装插件直接拿它），不要加进这里。
+# Note: main.js IS committed — it is what users install. Do not add it here.
 
-# 本地测试环境
+# Local test environment
 .obsidian/
 *.log
 
-# 编辑器 / 系统噪声
+# Editor / OS noise
 .DS_Store
 Thumbs.db
 *.swp

@@ -1,8 +1,8 @@
-/* 插件专属样式：只补主站 CSS 里没有的「笔记内」形态。
-   主站 CSS 会被构建脚本搬进 shadow root（:root → :host，body → .tb-root），
-   这里的规则同样注入 shadow root，因此不会影响 Obsidian 界面。 */
+/* Plugin-only styles: the "inside a note" shapes the main stylesheet has no idea about.
+   The main stylesheet is scoped into the shadow root at build time (:root → :host,
+   body → .tb-root); these rules land there too, so nothing here can touch Obsidian's UI. */
 
-/* --- 外壳：隔离宿主，给代码块一个稳定盒 ------------------------------------------------- */
+/* --- Shell: isolate the host and give the code block a stable box ----------------------- */
 .tb-shell {
   position: relative;
   display: block;
@@ -17,7 +17,7 @@
   min-height: 0;
 }
 
-/* --- 预览态：只留波形，不占编辑 chrome -------------------------------------------------- */
+/* --- Preview: diagram only, no editing chrome ----------------------------------------- */
 .tb-root:not(.is-editing) .topbar,
 .tb-root:not(.is-editing) .dockzone,
 .tb-root:not(.is-editing) .pane.src {
@@ -41,7 +41,7 @@
   height: auto;
 }
 
-/* --- 编辑态：给一个固定视口，编辑器按它算布局 ------------------------------------------ */
+/* --- Editing: a fixed viewport the editor can lay itself out in ------------------------ */
 .tb-root.is-editing {
   height: min(72vh, 560px);
   min-height: 380px;
@@ -52,7 +52,7 @@
   min-height: 0;
 }
 
-/* --- 铅笔 / 对勾：预览与编辑共用同一个位置 -------------------------------------------- */
+/* --- Pencil / checkmark: same spot in both states ------------------------------------- */
 .tb-toggle {
   position: absolute;
   top: 6px;
@@ -94,7 +94,7 @@
 .tb-root.is-editing .tb-toggle .ico-done { display: block; }
 .tb-root.is-editing .tb-toggle .ico-edit { display: none; }
 
-/* --- 解析失败：一行提示，不吞原文 ------------------------------------------------------ */
+/* --- Parse failure: one visible line, source untouched --------------------------------- */
 .tb-error {
   padding: 8px 10px;
   font: 12px/1.5 var(--sans);
