@@ -1,6 +1,8 @@
 # 依赖与构建中间产物
 node_modules/
 src/_tb-styles.js
+NOTES.md
+dist/
 
 # 注意：main.js 是**提交进仓库**的构建产物（用户装插件直接拿它），不要加进这里。
 

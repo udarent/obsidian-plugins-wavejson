@@ -50,8 +50,11 @@ jobs:
           cp main.js manifest.json styles.css dist/
           ls -l dist
 
+      - name: 从 CHANGELOG 生成 release notes
+        run: node release-notes.mjs
+
       - name: 创建 release
         uses: softprops/action-gh-release@v2
         with:
           files: dist/*
-          generate_release_notes: true
+          body_path: NOTES.md
