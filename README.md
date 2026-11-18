@@ -84,4 +84,24 @@ src/main.js          插件入口：代码块处理器 + 挂载 / 切态 / 写�
 src/plugin.css       插件专属样式（预览态、铅笔、编辑态高度、错误条）
 esbuild.config.mjs   构建脚本（含 CSS 作用域转换）
 sync.mjs             把构建产物复制进测试 vault（两仓库并排时用）
+version-bump.mjs     npm version 时同步 manifest.json / versions.json
+.github/workflows/   打 tag 自动发 release（校验版本一致 → 语法自检 → 上传三件套）
 ```
+
+## 发布（维护者）
+
+```bash
+npm run build                 # 内核改过就必须重跑，main.js 要一起提交
+git add main.js
+
+npm version patch             # 触发 version-bump：同步 manifest / versions 并打 tag
+git push && git push --tags   # tag 触发 CI：校验版本一致 + node --check + 建 release
+```
+
+CI 不会重新构建（它读不到同级目录的内核源码），发布的是仓库里那份 `main.js` —— 所以
+`npm run build` 后忘了提交，release 资产就会落后于源码。
+
+## 许可
+
+MIT © udarent。变更记录见 [CHANGELOG.md](CHANGELOG.md)；
+渲染内核来自 [TimingBench](https://github.com/udarent/TimingBench)（同为 MIT）。

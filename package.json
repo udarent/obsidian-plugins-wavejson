@@ -1,12 +1,31 @@
 {
-  "name": "wavejson",
+  "name": "obsidian-wavejson",
   "version": "0.1.0",
   "private": true,
-  "description": "WaveJSON for Obsidian: render and edit WaveJSON timing diagrams inline.",
+  "description": "Render WaveJSON timing diagrams in Obsidian notes and edit them in place.",
+  "keywords": [
+    "obsidian",
+    "obsidian-plugin",
+    "wavejson",
+    "wavedrom",
+    "timing-diagram"
+  ],
+  "author": "udarent",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/udarent/obsidian-plugins-wavejson.git"
+  },
+  "bugs": {
+    "url": "https://github.com/udarent/obsidian-plugins-wavejson/issues"
+  },
+  "homepage": "https://github.com/udarent/obsidian-plugins-wavejson#readme",
+  "main": "main.js",
   "scripts": {
     "build": "node esbuild.config.mjs",
     "dev": "node esbuild.config.mjs --watch",
-    "sync": "node sync.mjs"
+    "sync": "node sync.mjs",
+    "version": "node version-bump.mjs && git add manifest.json versions.json"
   },
   "devDependencies": {
     "esbuild": "^0.24.0"

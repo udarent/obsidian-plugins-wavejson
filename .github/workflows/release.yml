@@ -1,0 +1,57 @@
+name: Release
+
+# 打 tag（如 0.1.0）即发布：校验三处版本号一致 → 语法自检 → 把
+# manifest.json / main.js / styles.css 作为 release 资产上传。
+#
+# 这里**不重新构建**：main.js 是提交进仓库的产物，构建依赖同级目录的 TimingBench 内核，
+# CI 里没有它。想让 release 资产跟上内核，就在本地 `npm run build` 后连同 main.js 一起提交
+# 再打 tag —— 校验步骤会挡住「tag 是 0.2.0、manifest 还是 0.1.0」这类错位。
+
+on:
+  push:
+    tags:
+      - "*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+
+      - name: 校验版本号一致
+        run: |
+          node -e '
+            const fs = require("fs");
+            const tag = process.env.GITHUB_REF_NAME;
+            const manifest = JSON.parse(fs.readFileSync("manifest.json", "utf8"));
+            const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+            const versions = JSON.parse(fs.readFileSync("versions.json", "utf8"));
+            const bad = [];
+            if (manifest.version !== tag) bad.push(`manifest.json ${manifest.version} ≠ tag ${tag}`);
+            if (pkg.version !== tag) bad.push(`package.json ${pkg.version} ≠ tag ${tag}`);
+            if (!versions[tag]) bad.push(`versions.json 里没有 ${tag}`);
+            if (bad.length) { console.error(bad.join("\n")); process.exit(1); }
+            console.log(`版本一致：${tag}（minAppVersion ${manifest.minAppVersion}）`);
+          '
+
+      - name: 校验产物可加载
+        run: node --check main.js
+
+      - name: 收集发布文件
+        run: |
+          mkdir -p dist
+          cp main.js manifest.json styles.css dist/
+          ls -l dist
+
+      - name: 创建 release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true

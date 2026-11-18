@@ -1,2 +1,14 @@
+# 依赖与构建中间产物
 node_modules/
 src/_tb-styles.js
+
+# 注意：main.js 是**提交进仓库**的构建产物（用户装插件直接拿它），不要加进这里。
+
+# 本地测试环境
+.obsidian/
+*.log
+
+# 编辑器 / 系统噪声
+.DS_Store
+Thumbs.db
+*.swp
