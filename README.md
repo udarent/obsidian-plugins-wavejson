@@ -68,8 +68,9 @@ npm run dev       # 监听改动（改完在 Obsidian 里 Ctrl+R 重载插件）
 `main.js` 是**提交进仓库**的构建产物：用户拿到的就是它，不需要自己构建。
 当前这份由 TimingBench **v0.25.0** 内核构建 —— 内核改了而 `main.js` 没重建，插件就落后于站点，改内核后记得跑一次 `npm run build`。
 
-`npm run sync` 把产物复制到 `../test-vault/.obsidian/plugins/wavejson/`（TimingBench 工作区里的测试仓库）；
-本仓库单独 clone 时没有这个目录，sync 会失败 —— 那是给「两仓库并排」的开发环境用的，不影响构建。
+`npm run sync` 把产物复制到 `<vault>/.obsidian/plugins/wavejson/`，默认 vault 取同级的 `../test-vault`
+（TimingBench 工作区里的测试仓库）。单独 clone 本仓库时用 `--dest=<vault 路径>` 或环境变量
+`WAVEJSON_VAULT` 指定，不影响构建。
 
 > 主站交付物仍是「零构建」的多文件静态站点；这里的构建只服务于插件这一分发形态。
 
