@@ -1350,7 +1350,7 @@ function gripDots(x, y, cols, rows) {
 function createShapes(ctx) {
   var state = ctx.state, wrap = ctx.wrap;
   function rowH() {
-    return state.readonly && state.embedCard ? RO_ROW_H : ROW_H;
+    return state.readonly ? RO_ROW_H : ROW_H;
   }
   var SC = "deskEdit";
   function can2(name) {
@@ -1573,7 +1573,7 @@ function createShapes(ctx) {
     var roTrimTop = Math.max(0, TOP - 6);
     var roTrimBottom = 6;
     var RH = rowH();
-    var tight = state.readonly && state.embedCard;
+    var tight = !!state.readonly;
     var bandT = tight ? 0.1 : 0.25, bandM = tight ? 0.5 : 0.48, bandB = tight ? 0.9 : 0.71;
     var roW = Math.max(ACT_X + PAD, 360);
     var roBottomY = function() {
@@ -1586,13 +1586,12 @@ function createShapes(ctx) {
     var isEmpty = ir.lanes.length === 0;
     if (isEmpty) bottom = TOP + RH;
     var actY = bottom + 4;
-    var contentH = bottom + (state.embedCard && state.readonly ? roTrimBottom : 6);
+    var contentH = bottom + 6;
     var H = contentH, c, x;
-    var vbTop = state.embedCard && state.readonly ? roTrimTop : 0;
+    var vbTop = state.readonly ? roTrimTop : 0;
     var vbH = H - vbTop;
     var rawFit = viewW > 0 ? viewW / W : 1;
-    var fsBig = !!state.embedCard && !state.readonly && !!state.fsEdit;
-    var baseFit = fsBig ? Math.min(2, Math.max(1, rawFit)) : state.embedCard && state.readonly ? Math.min(2, rawFit) : T || state.embedCard ? Math.min(1, rawFit) : 1;
+    var baseFit = state.readonly ? Math.min(2, rawFit) : T ? Math.min(1, rawFit) : 1;
     var availH = wrap.clientHeight || 0;
     var fitView = Math.min(1, rawFit, availH > 0 ? availH / H : 1);
     var zoomMin = Math.min(1, Math.max(ZOOM_MIN, fitView / baseFit));
@@ -1610,7 +1609,7 @@ function createShapes(ctx) {
     state.zoomMin = zoomMin;
     state.baseOutW = baseOutW;
     var outW0 = baseOutW;
-    state.contentH = state.embedCard ? Math.round(vbH * outW0 / W) : contentH;
+    state.contentH = state.readonly ? Math.round(vbH * outW0 / W) : contentH;
     state.W = W;
     state.H = H;
     var o = ['<svg width="' + outW + '" height="' + outH + '" viewBox="0 ' + vbTop + " " + W + " " + vbH + '" preserveAspectRatio="xMidYMin meet" class="' + (state.linkMode ? "linkMode" : "") + '" role="img" aria-label="Timing diagram editor">'];
@@ -3526,7 +3525,7 @@ function attachTouchUI(ctx, dom) {
     var cmds = hudCmds(sceneOf(state));
     var cols = ctx.currentLayout ? ctx.currentLayout() === "cols" : true;
     var view = ctx.currentView ? ctx.currentView() : "both";
-    var key = cmds.join(",") + "|" + state.undo.length + "|" + state.redo.length + "|" + (cols ? "C" : "R") + "|" + (state.embedCard ? "E" : "-") + "|" + view;
+    var key = cmds.join(",") + "|" + state.undo.length + "|" + state.redo.length + "|" + (cols ? "C" : "R") + "|" + (state.readonly ? "R" : "-") + "|" + view;
     if (key === topKey && topbar.childNodes.length) return;
     topKey = key;
     topbar.textContent = "";
@@ -4854,7 +4853,6 @@ var Block = class {
       gutter: q("gutter"),
       errdot: q("errdot"),
       app: q("app"),
-      isEmbed: false,
       initial: this.source,
       topbar: q("topbar"),
       tbpanel: q("tbpanel"),

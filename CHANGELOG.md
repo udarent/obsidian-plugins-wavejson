@@ -9,6 +9,19 @@ only when they change what you see.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.3] - 2026-11-18
+
+Synced with TimingBench 0.26.0, which reworked the read-only view.
+
+### Changed
+
+- **Read-only diagrams are more compact.** The header strip that was reserved above the
+  waveform is gone, rows use the tighter row height, and the diagram scales to the width
+  of the card (at most 2×; vectors stay sharp). Reading view now fits noticeably more
+  content before you have to scroll.
+- Dropped the `isEmbed` argument passed to the editor core. Embedding was removed upstream,
+  so the option no longer exists.
+
 ## [0.1.2] - 2026-11-18
 
 ### Changed
@@ -57,6 +70,7 @@ First release.
 - The note is written only when editing ends. Returning to a cached tab keeps
   the uncommitted changes, and they are saved when you exit editing.
 
+[0.1.3]: https://github.com/udarent/obsidian-plugins-wavejson/compare/0.1.2...0.1.3
 [0.1.2]: https://github.com/udarent/obsidian-plugins-wavejson/compare/0.1.1...0.1.2
 [0.1.1]: https://github.com/udarent/obsidian-plugins-wavejson/compare/0.1.0...0.1.1
 [0.1.0]: https://github.com/udarent/obsidian-plugins-wavejson/releases/tag/0.1.0

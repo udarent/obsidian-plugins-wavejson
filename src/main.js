@@ -98,7 +98,6 @@ class Block {
       gutter: q("gutter"),
       errdot: q("errdot"),
       app: q("app"),
-      isEmbed: false,
       initial: this.source,
       topbar: q("topbar"),
       tbpanel: q("tbpanel"),
