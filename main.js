@@ -1122,8 +1122,7 @@ function sceneOf(state) {
   return (TOUCH ? "touch" : "desk") + (state && state.readonly ? "View" : "Edit");
 }
 var CAP = {
-  // 画布 HUD：撤销 / 重做 / 分屏方向 / 生成嵌入代码（卡片里去掉）。
-  // 连线按钮在 0.9.17 从 HUD 移到底部上下文条（与 label / node 同排），见 ACTS。
+  // 顶栏（页面级，不是画布内 HUD）：撤销 / 重做 / 分屏方向 / 视图切换。只读预览整条不画。
   hud: { deskEdit: ON, deskView: OFF, touchEdit: ON, touchView: OFF },
   colhead: { deskEdit: ON, deskView: OFF, touchEdit: ON, touchView: OFF },
   // 列操作 / 行工具在画布上**没有渲染实现**了（0.15.1 删净：`colBtn` / `rowTools` 连同行内
@@ -1132,7 +1131,7 @@ var CAP = {
   // 贴合内容右缘，小视口下不再多出一段能横向滚过去的空白。
   // 这两项仍留在表里，是两个理由：① 记录「画布上不画、改由谁承担」这个去向，后来人不必
   // 从 git 历史里考古；② 让下面 `editEntries` 的「只读不泄漏编辑入口」检查继续覆盖它们 ——
-  // 真有人把行工具加回去，只读卡片那条断言立刻会红。
+  // 真有人把行工具加回去，只读预览那条断言立刻会红。
   colAct: { deskEdit: SW, deskView: OFF, touchEdit: SW, touchView: OFF },
   rowTool: { deskEdit: SW, deskView: OFF, touchEdit: SW, touchView: OFF },
   // 行首拖拽把手（`rowDrag`）已在 0.9.13 删净 —— 图元、命中分支、拖拽结算一起走，
@@ -1144,8 +1143,8 @@ var CAP = {
   spacerMark: { deskEdit: ON, deskView: OFF, touchEdit: ON, touchView: OFF },
   // 字符输入只剩一套实现：HTML 停靠条（`#chardock`）。桌面原来在 SVG 里画一条 23 颗的
   // 字符条（旧 `actionBar`），触摸端是固定停靠条 —— 同一件事两套渲染、两套布局、两套点击。
-  // 现在统一为前者，并按**实际可用宽度**折叠：宽屏（含宽屏触摸 / 宽嵌卡片）一次铺满全部
-  // 字符，窄屏才把放不下的收进 `⋯`。这是**布局**差异（宽度决定折叠），不是能力差异。
+  // 现在统一为前者，且**一次铺满全部字符**（0.26.0 起取消 `⋯` 折叠）：放不下就换行，
+  // 这是**布局**差异，不是能力差异。
   // 顺带删掉了 SVG 字符条那段「滚动时反向位移把 chips 钉回可视区」的历史包袱，以及
   // `charChips` 图元。
   dock: { deskEdit: ON, deskView: OFF, touchEdit: ON, touchView: OFF },
@@ -1169,11 +1168,13 @@ var ACTS = {
   // group / spanUp / spanDown 是「分组」这一组动作：group 按当前**行范围**归组（输入组名，
   // 可用 / 嵌套，清空 = 退出这一层）；spanUp / spanDown 把范围向外推一行 —— 触摸端没有
   // Shift，这是它唯一能表达「一段连续行」的方式（桌面另有 Shift+点行名 / Shift+↑↓）。
+  // **整行的 data / node 两个入口已撤**（0.27.1）：它们和格级的 label / node 是**同一个字段**，
+  // 只是粒度不同（一次给全部 vs 一次给一格）。同一个修改有两个入口，用户就得先判断「我该点哪个」——
+  // 而格级已经能写到每一个值，撤掉不影响可表达性。wave 保留：那是「整行重写」，
+  // 与「逐格绘制」是两种动作，16 拍的行靠点选要 16 次。
   row: [
     "name",
     "wave",
-    "data",
-    "nodeStr",
     "phase",
     "period",
     "up",
@@ -1183,15 +1184,16 @@ var ACTS = {
     "del",
     "group",
     "spanUp",
-    "spanDown",
-    "link"
+    "spanDown"
   ],
-  col: ["insert", "delete", "gap", "append", "link"],
-  // 格级：作用对象是「某一个格子」而不是整行 / 整列。行级的 data / nodeStr 改的是整行
-  // 全部标签 / 整行锚点串；这两项才是「只改这一格」。
+  col: ["insert", "delete", "gap", "append"],
+  // 格级：作用对象是「某一个格子」而不是整行 / 整列。这两项也是「标签 / 锚点」**唯一**的入口
+  // （行级的批量版已撤，见上面 ACTS.row 的说明）—— 一次改一格，语义与位置才对得上。
   // **0.18.0 从上下文条挪到字符停靠条左侧**：它们和字符一样「只在选中格子时才有意义」，
   // 放同一行既省掉一整行常驻，也让「点格子 → 改这一格」的工具聚在一处。
-  // link 同时留在 row / col 组里 —— 选中整行 / 整列时也要能起手连线，而停靠条那时不显示。
+  // **link 只在这一组**（0.27.1）：它连接的是「两个节点」，行 / 列都不是它的作用对象 ——
+  // 把它列进行 / 列动作里，等于承诺「选中一行就能连线」，而实际还是要落到格子上。
+  // 键盘用户不受影响：`k` 在任意选中下都能开连线模式（连线本身仍要点两个格子）。
   dock: ["label", "node", "link"]
 };
 
@@ -1204,14 +1206,36 @@ function waveLevel(ch, T2, M, B) {
   if (Core.BUS.test(ch) || Core.CLOCK.test(ch) || ch === "x") return null;
   return M;
 }
-function waveHatch(X, x1, T2, B, W) {
-  var o = [], dy = B - T2, step = Math.max(3, W / 7), k, sx, ex, a, b;
-  for (k = -6; k <= 10; k++) {
+function waveHatch(X, x1, T2, B, W, left, right) {
+  var o = [], dy = B - T2;
+  var want = Math.max(3, Math.min(W / 7, dy / 6)), nz = Math.max(1, Math.round(W / want)), step = W / nz, k, sx, a, b;
+  var crossX = function(seg, sx2) {
+    var vx = seg[2] - seg[0], vy = seg[3] - seg[1];
+    if (!vy) return null;
+    var kk = vx / vy, den = 1 + kk;
+    if (Math.abs(den) < 1e-6) return null;
+    return (seg[0] + kk * (sx2 + B - seg[1])) / den;
+  };
+  var bound = function(segs, sx2, takeMin) {
+    if (!segs) return null;
+    var list = segs[0] !== void 0 && typeof segs[0] === "number" ? [segs] : segs, r = null, i, v;
+    for (i = 0; i < list.length; i++) {
+      v = crossX(list[i], sx2);
+      if (v === null) continue;
+      r = r === null ? v : takeMin ? Math.min(r, v) : Math.max(r, v);
+    }
+    return r;
+  };
+  var k0 = Math.floor(-dy / step) - 1, k1 = Math.ceil((x1 - X) / step) + 1;
+  for (k = k0; k <= k1; k++) {
     sx = X + k * step;
-    ex = sx + dy;
     a = Math.max(X, sx);
-    b = Math.min(x1, ex);
+    b = Math.min(x1, sx + dy);
     if (b <= a) continue;
+    var cl = bound(left, sx, false), cr = bound(right, sx, true);
+    if (cl !== null && cl > a) a = cl;
+    if (cr !== null && cr < b) b = cr;
+    if (b <= a + 0.5) continue;
     o.push('<path class="waveHair" d="M' + a + "," + (B - (a - sx)) + " L" + b + "," + (B - (b - sx)) + '"/>');
   }
   return o.join("");
@@ -1226,6 +1250,37 @@ function railEnd(ch, T2, B) {
   if (/[nNhH]/.test(ch)) return T2;
   return waveLevel(ch, T2, null, B);
 }
+function railStart(ch, T2, B) {
+  if (!ch) return null;
+  if (/[pPhH]/.test(ch)) return T2;
+  if (/[nNlL]/.test(ch)) return B;
+  return waveLevel(ch, T2, null, B);
+}
+function capEdges(X, bi, bm, T2, M, B) {
+  return [[X + bi, T2, X + bm, M], [X + bi, B, X + bm, M]];
+}
+function blockEdge(W) {
+  var bi = Math.min(3, W * 0.12), br = Math.min(9, W * 0.34);
+  return { bi, br, bm: (bi + br) / 2 };
+}
+function blockCap(ch, capCls, X, T2, M, B, W, bi, br, bm) {
+  var r = railStart(ch, T2, B), fp, ink, pts = [], k, hair = "", seg;
+  if (r === T2) {
+    fp = [[X, T2], [X, B], [X + bi, B], [X + br, T2]];
+    ink = "M" + X + "," + B + " H" + (X + bi) + " L" + (X + br) + "," + T2;
+    seg = [X + bi, B, X + br, T2];
+  } else if (r === B) {
+    fp = [[X, T2], [X, B], [X + bi, T2], [X + br, B]];
+    ink = "M" + X + "," + T2 + " H" + (X + bi) + " L" + (X + br) + "," + B;
+    seg = [X + bi, T2, X + br, B];
+  } else {
+    fp = [[X, T2], [X, B], [X + bi, B], [X + bm, M], [X + bi, T2]];
+    ink = "M" + (X + bi) + "," + B + " L" + (X + bm) + "," + M + " L" + (X + bi) + "," + T2;
+  }
+  if (!capCls) hair = r === T2 || r === B ? waveHatch(X, X + br, T2, B, W, [X, T2, X, B], seg) : waveHatch(X, X + bm, T2, B, W, [X, T2, X, B], capEdges(X, bi, bm, T2, M, B));
+  for (k = 0; k < fp.length; k++) pts.push(fp[k][0] + "," + fp[k][1]);
+  return (capCls ? '<polygon class="waveBus ' + capCls + '" points="' + pts.join(",") + '" stroke="none"/>' : "") + hair + '<path class="waveBusInk" d="' + ink + '"/>';
+}
 function waveGap(X, T2, B) {
   var t = T2 - 2, b = B + 2;
   var mask = "M" + (X + 7) + "," + t + " L" + (X + 3) + "," + t + " C" + (X - 2) + "," + t + " " + (X - 2) + "," + b + " " + (X - 7) + "," + b + " L" + (X - 3) + "," + b + " C" + (X + 2) + "," + b + " " + (X + 2) + "," + t + " " + (X + 7) + "," + t + " z";
@@ -1237,20 +1292,45 @@ function waveGlyph(ch, prev, X, T2, M, B, W, opt) {
   var o = [], x1 = X + W, o2 = opt || {}, ax = o2.arrowX === void 0 ? X : o2.arrowX;
   var px = X + 3, ex = X + Math.min(W * 0.24, 9);
   if (!(Core.BUS.test(ch) || Core.CLOCK.test(ch) || /[01xzud]/.test(ch))) ch = "x";
-  if (Core.BUS.test(ch)) {
-    var seg = o2.seg || "only";
-    var cls = o2.cls || BUS_CLASS[ch] || "bus2";
-    var lj = seg === "mid" || seg === "end", rj = seg === "mid" || seg === "start";
-    var fp;
-    if (lj && rj) fp = [X, T2, x1, T2, x1, B, X, B];
-    else if (lj) fp = [X, T2, x1 - 3, T2, x1, M, x1 - 3, B, X, B];
-    else if (rj) fp = [X, M, X + 3, T2, x1, T2, x1, B, X + 3, B];
-    else fp = [X + 3, T2, x1 - 3, T2, x1, M, x1 - 3, B, X + 3, B, X, M];
-    o.push('<polygon class="waveBus ' + cls + '" points="' + fp.join(",") + '" stroke="none"/>');
-    var bd = "M" + X + "," + T2 + " H" + x1 + " M" + X + "," + B + " H" + x1;
-    if (!lj) bd += " M" + X + "," + M + " L" + (X + 3) + "," + T2 + " M" + X + "," + M + " L" + (X + 3) + "," + B;
-    if (!rj) bd += " M" + (x1 - 3) + "," + T2 + " L" + x1 + "," + M + " L" + (x1 - 3) + "," + B;
-    o.push('<path class="waveBusInk" d="' + bd + '"/>');
+  var e = blockEdge(W), bi = e.bi, br = e.br, bm = e.bm;
+  var isBus = Core.BUS.test(ch), isX = ch === "x";
+  if (o2.pblock && !isBus && !isX)
+    o.push(blockCap(ch, o2.pbus ? o2.pcls || "bus2" : null, X, T2, M, B, W, bi, br, bm));
+  if (isBus || isX) {
+    var cls = isBus ? o2.cls || BUS_CLASS[ch] || "bus2" : null;
+    var pts = function(a) {
+      var s = [], k;
+      for (k = 0; k < a.length; k++) s.push(a[k][0] + "," + a[k][1]);
+      return s.join(",");
+    };
+    if (isBus && o2.icon) {
+      o.push('<polygon class="waveBus ' + cls + '" points="' + pts([[X + bi, T2], [x1 - bi, T2], [x1, M], [x1 - bi, B], [X + bi, B], [X, M]]) + '" stroke="none"/>');
+      o.push('<path class="waveBusInk" d="M' + (X + bi) + "," + T2 + " H" + (x1 - bi) + " M" + (X + bi) + "," + B + " H" + (x1 - bi) + " M" + X + "," + M + " L" + (X + bi) + "," + T2 + " M" + X + "," + M + " L" + (X + bi) + "," + B + " M" + (x1 - bi) + "," + T2 + " L" + x1 + "," + M + " L" + (x1 - bi) + "," + B + '"/>');
+      return '<g class="waveGlyph" data-w="' + esc(ch) + '" pointer-events="none">' + o.join("") + "</g>";
+    }
+    var kind = o2.pblock ? o2.psame ? "join" : "cross" : prev ? "enter" : "edge";
+    var ra = kind === "enter" ? railEnd(prev, T2, B) : null;
+    if (kind === "enter" && ra !== T2 && ra !== B) kind = "cross";
+    var fp, bd, left = null;
+    if (kind === "cross") {
+      fp = [[X + br, T2], [x1, T2], [x1, B], [X + br, B], [X + bm, M]];
+      bd = "M" + (X + br) + "," + T2 + " H" + x1 + " M" + (X + br) + "," + B + " H" + x1 + " M" + (X + bi) + "," + T2 + " L" + (X + br) + "," + B + " M" + (X + bi) + "," + B + " L" + (X + br) + "," + T2 + " M" + X + "," + T2 + " H" + (X + bi) + " M" + X + "," + B + " H" + (X + bi);
+      if (!o2.psame) {
+        if (o2.pbus) o.push('<polygon class="waveBus ' + (o2.pcls || "bus2") + '" points="' + pts([[X + bi, T2], [X, T2], [X, B], [X + bi, B], [X + bm, M]]) + '" stroke="none"/>');
+        else o.push(waveHatch(X, X + bm, T2, B, W, [X, T2, X, B], capEdges(X, bi, bm, T2, M, B)));
+      }
+      left = [X + br, T2, X + br, B];
+    } else if (kind === "enter") {
+      fp = ra === T2 ? [[X + bi, T2], [x1, T2], [x1, B], [X + br, B]] : [[X + br, T2], [x1, T2], [x1, B], [X + bi, B]];
+      bd = ra === T2 ? "M" + X + "," + T2 + " H" + x1 + " M" + (X + br) + "," + B + " H" + x1 + " M" + (X + bi) + "," + T2 + " L" + (X + br) + "," + B : "M" + X + "," + B + " H" + x1 + " M" + (X + br) + "," + T2 + " H" + x1 + " M" + (X + bi) + "," + B + " L" + (X + br) + "," + T2;
+      left = ra === T2 ? [X + bi, T2, X + br, B] : [X + bi, B, X + br, T2];
+    } else {
+      fp = [[X, T2], [x1, T2], [x1, B], [X, B]];
+      bd = "M" + X + "," + T2 + " H" + x1 + " M" + X + "," + B + " H" + x1;
+    }
+    if (isBus) o.push('<polygon class="waveBus ' + cls + '" points="' + pts(fp) + '" stroke="none"/>');
+    else o.push(waveHatch(X, x1, T2, B, W, left, null));
+    o.push('<path class="' + (isBus ? "waveBusInk" : "waveInk") + '" d="' + bd + '"/>');
   } else if (Core.CLOCK.test(ch)) {
     var up = /[pPhH]/.test(ch), pl = prev ? railEnd(prev, T2, B) : null, d;
     if (/[pPnN]/.test(ch)) {
@@ -1262,9 +1342,6 @@ function waveGlyph(ch, prev, X, T2, M, B, W, opt) {
     }
     o.push('<path class="waveInk" d="' + d + '"/>');
     if (/[PHNL]/.test(ch)) o.push(waveArrow(ax, T2, B, up));
-  } else if (ch === "x") {
-    o.push('<path class="waveInk" d="M' + X + "," + T2 + " H" + x1 + '"/><path class="waveInk" d="M' + X + "," + B + " H" + x1 + '"/>');
-    o.push(waveHatch(X, x1, T2, B, W));
   } else {
     var cy = waveLevel(ch, T2, M, B);
     if (cy === null) cy = M;
@@ -1301,7 +1378,7 @@ function fitLabel(text, room, size) {
   return (s.slice(0, i) || s.charAt(0)) + "\u2026";
 }
 function chipGlyph(v) {
-  return waveGlyph(v, null, 0, 5, 13, 21, CHIP_W, { arrowX: 3 });
+  return waveGlyph(v, null, 0, 5, 13, 21, CHIP_W, { arrowX: 3, icon: true });
 }
 function chipDesc(v) {
   if (Core.BUS.test(v)) return v === "=" || v === "2" ? "bus data block (white)" : "bus data block, colour " + (Number(v) + 5);
@@ -1694,13 +1771,12 @@ function createShapes(ctx) {
       for (i = 0; i < chars; i++) {
         var s = i < l.slots.length ? l.slots[i] : null, x0 = cellGeo(l, i).x0, w = s ? s.w : lastW;
         var prevCh = i > 0 ? wsAt(i - 1) : null;
-        var gopt = {};
-        if (Core.BUS.test(w)) {
-          var ljoin = i > 0 && !ptAt(i) && Core.BUS.test(wsAt(i - 1));
-          var rjoin = i + 1 < chars && !ptAt(i + 1) && Core.BUS.test(wsAt(i + 1));
-          gopt.seg = ljoin ? rjoin ? "mid" : "end" : rjoin ? "start" : "only";
-          gopt.cls = busClassOf(w);
-        }
+        var gopt = {}, pbus = !!prevCh && Core.BUS.test(prevCh), pblock = pbus || prevCh === "x";
+        gopt.pbus = pbus;
+        gopt.pblock = pblock;
+        if (pblock) gopt.psame = !ptAt(i);
+        if (pbus) gopt.pcls = busClassOf(prevCh);
+        if (Core.BUS.test(w)) gopt.cls = busClassOf(w);
         var glyph = waveGlyph(w, prevCh, x0, yT, yM, yB, cw, gopt);
         o.push(s ? glyph : '<g class="tailSlot" role="img" aria-label="Undefined period \u2014 tap to extend">' + glyph + "</g>");
         if (s && s.gap) o.push(waveGap(x0, yT, yB));
@@ -1725,8 +1801,16 @@ function createShapes(ctx) {
           }
         }
         if (lb2 !== null) {
-          var lx0 = cellGeo(l, run).x0, lx1 = cellGeo(l, runEnd).x0 + cellGeo(l, runEnd).w;
-          o.push('<text class="waveLabel" x="' + ((lx0 + lx1) / 2).toFixed(1) + '" y="' + (yM + 1) + '" text-anchor="middle" dominant-baseline="central">' + esc(fitLabel(lb2, Math.max(10, lx1 - lx0 - 4), 10)) + "</text>");
+          var g0 = cellGeo(l, run), gE = cellGeo(l, runEnd);
+          var lx0 = g0.x0, lx1 = gE.x0 + gE.w;
+          var lbe = blockEdge(g0.w), lbm = lbe.bm, lbi = lbe.bi, lbr = lbe.br;
+          var lprev = run > 0 ? wsAt(run - 1) : null, lnext = runEnd + 1 < chars ? wsAt(runEnd + 1) : null;
+          var isBlock = function(c2) {
+            return !!c2 && (Core.BUS.test(c2) || c2 === "x");
+          };
+          if (run > 0) lx0 += isBlock(lprev) ? lbm : lbi;
+          if (runEnd + 1 < chars) lx1 += isBlock(lnext) ? lbm : lbr;
+          o.push('<text class="waveLabel" x="' + ((lx0 + lx1) / 2).toFixed(1) + '" y="' + yM + '" text-anchor="middle" dominant-baseline="central">' + esc(fitLabel(lb2, Math.max(10, lx1 - lx0 - 4), 10)) + "</text>");
         }
         run = runEnd + 1;
       }
@@ -1999,26 +2083,6 @@ function attachInteractions(ctx) {
           wide: true,
           makeOp: function(v) {
             return { t: "setWave", lane: l.id, v };
-          }
-        };
-      case "data":
-        return {
-          val: Core.laneLabels(l).join(" "),
-          title: "row data (space separated, empty removes)",
-          label: "row data",
-          wide: true,
-          makeOp: function(v) {
-            return { t: "setLabels", lane: l.id, v };
-          }
-        };
-      case "node":
-        return {
-          val: l.node.join("").replace(/\.+$/, ""),
-          title: "row node",
-          label: "row node",
-          wide: true,
-          makeOp: function(v) {
-            return { t: "setNodeStr", lane: l.id, v };
           }
         };
     }
@@ -3274,12 +3338,12 @@ function attachInteractions(ctx) {
       case "r":
         if (needSignal()) ctx.openInlineFor({ nameLane: sc.lane });
         return true;
+      // 整行 wave / 相位 / 周期。行级的 data / node 已撤（0.27.1）：同一个字段只留格级入口，
+      // 批量改标签仍可用 `b` 逐个改，或直接改源码。
       case "w":
-      case "a":
-      case "s":
       case "f":
       case "t":
-        if (needSignal()) ctx.openRowEditor(sc.lane, { w: "wave", a: "data", s: "node", f: "phase", t: "period" }[k]);
+        if (needSignal()) ctx.openRowEditor(sc.lane, { w: "wave", f: "phase", t: "period" }[k]);
         return true;
       case "b":
         if (needSignal()) ctx.openLabelEditor(sc.lane, sc.tick);
@@ -3492,8 +3556,8 @@ function attachInteractions(ctx) {
 
 // ../TimingBench/src/editor/touch.js
 function attachTouchUI(ctx, dom) {
-  var topbar = dom.topbar, panel = dom.tbpanel, tbmoreEl = dom.tbmore, toast = dom.toast;
-  var dock = dom.chardock, more = dom.charmore;
+  var topbar = dom.topbar, panel = dom.tbpanel, toast = dom.toast;
+  var dock = dom.chardock;
   var state = ctx.state;
   var toastTimer = null;
   function say(t) {
@@ -3511,8 +3575,7 @@ function attachTouchUI(ctx, dom) {
   var TOP_META = {
     undo: { txt: "\u21B6", name: "Undo (Ctrl+Z)" },
     redo: { txt: "\u21B7", name: "Redo (Ctrl+Y)" },
-    layout: { txt: "\u21C4", name: "Split direction" },
-    embed: { txt: "<>", name: "Embed code" }
+    layout: { txt: "\u21C4", name: "Split direction" }
   };
   var VIEW_TXT = "{ }";
   var VIEW_NAME = {
@@ -3577,19 +3640,23 @@ function attachTouchUI(ctx, dom) {
   var ICONS = {
     name: '<path d="M5 7h14M5 12h11M5 17h13"/>',
     wave: '<path d="M3 15h3v-6h4v6h4V9h4v6h3"/>',
-    data: '<rect x="4" y="8" width="16" height="8" rx="1"/><path d="M10 8v8M14 8v8"/>',
-    nodeStr: '<path d="M3 12h6M15 12h6"/><circle cx="12" cy="12" r="3.2"/>',
     phase: '<text x="12" y="17.5" text-anchor="middle" font-size="16" font-family="Georgia,serif" fill="currentColor" stroke="none">\u03C6</text>',
-    period: '<path d="M4 12h16"/><path d="M7.5 8.5L4 12l3.5 3.5M16.5 8.5L20 12l-3.5 3.5"/>',
+    // 周期用字母 T（0.27.1）—— 与相位用 φ 同一套「概念符号」写法。原先画的是左右箭头
+    // 「↔」，看着像「水平拉伸 / 双向移动」，而 period 其实是**一个格子的时间宽度**；
+    // 波形图里 T 就是周期的通用记号，和行名旁那个 `T` 徽标也对得上。
+    period: '<text x="12" y="17.5" text-anchor="middle" font-size="16" font-family="Georgia,serif" fill="currentColor" stroke="none">T</text>',
     up: '<path d="M12 19V6M7 11l5-5 5 5"/>',
     down: '<path d="M12 5v13M7 13l5 5 5-5"/>',
     add: '<path d="M12 5v14M5 12h14"/>',
     spacer: '<path d="M4 9h16M4 15h16"/>',
     del: '<path d="M5 7h14M9 7V5h6v2M7 7l1 13h8l1-13"/>',
-    // 格级：标签=带孔的吊牌（清晰可辨的「标注」意象），节点=带实心点的环（锚点标记）。
-    // 与行级的 data / nodeStr（整行）刻意画得不同，免得两个图标看着一样却差一个量级。
-    label: '<path d="M4 7h9l7 7-7 7H4z"/><circle cx="8.5" cy="11.5" r="1.5"/>',
-    node: '<circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2.4" fill="currentColor" stroke="none"/>',
+    // 格级两个动作的图标（0.27.1 重画）：
+    //   label = 字母 A 落在一条底线上 —— 「在这一格上写一行字」；吊牌那个形状读起来像价签，
+    //           跟「改这一格的数据标签」没什么联想。A 也不和 name 的三条横线、period 的 T 撞。
+    //   node  = 图钉 —— 「在这个位置插一个标记点」。原来是同心圆，读起来像单选按钮 / 靶心，
+    //           和 link 的两个圆点也容易混。
+    label: '<path d="M7.2 17L12 6.2 16.8 17"/><path d="M9.4 13.1h5.2"/><path d="M4.2 20.4h15.6"/>',
+    node: '<path d="M12 20.6s5.8-5.2 5.8-9.3a5.8 5.8 0 1 0-11.6 0c0 4.1 5.8 9.3 5.8 9.3z"/><circle cx="12" cy="10.9" r="2.1"/>',
     insert: '<path d="M8.5 5v14M15.5 5v14"/><path d="M12 9.5v5M9.5 12h5"/>',
     delCol: '<path d="M9 5v14"/><path d="M15 9l4.5 6M20 9l-4.5 6"/>',
     gap: '<path d="M12 5v14" stroke-dasharray="2.4 2.4"/>',
@@ -3607,8 +3674,6 @@ function attachTouchUI(ctx, dom) {
   var NAMES = {
     name: "signal name",
     wave: "row wave",
-    data: "row data",
-    nodeStr: "row node",
     label: "cell data label",
     node: "cell node marker",
     phase: "phase",
@@ -3673,11 +3738,9 @@ function attachTouchUI(ctx, dom) {
         if (l && ctx.openPhaseEdit) ctx.openPhaseEdit(l);
         return;
       case "wave":
-      case "data":
-      case "nodeStr":
       case "period":
         l = needLane();
-        if (l) ctx.openRowEditor(l, { wave: "wave", data: "data", nodeStr: "node", period: "period" }[k]);
+        if (l) ctx.openRowEditor(l, k === "wave" ? "wave" : "period");
         return;
       case "up":
       case "down":
@@ -3749,22 +3812,15 @@ function attachTouchUI(ctx, dom) {
       el.addEventListener("pointerleave", cancel);
     })(els[i]);
   }
-  var ctxKind = null, ctxKey = null, ctxActKey = "", ctxLinkFlag = "-", ctxMoreOpen = false, ctxHiddenActs = [];
+  var ctxKind = null, ctxKey = null, ctxActKey = "";
   var ctxScroll = null;
   var selfScrollTop = null;
   function hideContext() {
     ctxKind = null;
     ctxKey = null;
     ctxActKey = "";
-    ctxMoreOpen = false;
-    ctxHiddenActs = [];
     panel.classList.remove("open");
     panel.textContent = "";
-    if (tbmoreEl) {
-      tbmoreEl.textContent = "";
-      tbmoreEl.classList.remove("open");
-    }
-    syncMoreHeight();
   }
   function laneById(id) {
     if (!state.ir || !id) return null;
@@ -3794,14 +3850,10 @@ function attachTouchUI(ctx, dom) {
     switch (act) {
       case "name":
       case "wave":
-      case "data":
-      case "nodeStr":
       case "phase":
       case "period":
         return !isSp;
-      case "link":
-        return !isSp;
-      // 连线要落到具体格子上，空行没有格子
+      // 连线不在这里：它连的是两个节点，属于格级动作（见 ACTS.dock）。
       case "up":
         return li > 0;
       case "down":
@@ -3813,7 +3865,7 @@ function attachTouchUI(ctx, dom) {
   function availCol(act) {
     var c = state.sel;
     if (c === null || c === void 0 || !state.ir) return false;
-    if (act === "insert" || act === "append" || act === "link") return true;
+    if (act === "insert" || act === "append") return true;
     return c < state.ir.ticks;
   }
   function makeCtxBtn(k) {
@@ -3827,6 +3879,41 @@ function attachTouchUI(ctx, dom) {
     if (k === "link") b.setAttribute("aria-pressed", String(!!state.linkMode));
     b.innerHTML = iconSvg(k);
     return b;
+  }
+  function pickCols(el, n) {
+    if (!el || !n) return 0;
+    var cs = getComputedStyle(el);
+    var pad = parseFloat(cs.paddingLeft) || 0;
+    var gap = parseFloat(cs.columnGap || cs.gap) || 0;
+    var minW = parseFloat(cs.getPropertyValue("--btn")) || 32;
+    var avail = (el.clientWidth || 0) - pad * 2;
+    if (avail <= 0) return 0;
+    var maxCols = Math.max(1, Math.floor((avail + gap) / (minW + gap)));
+    var maxBtn = minW * 1.5;
+    var rowsMin = Math.ceil(n / maxCols);
+    var lo = Math.max(1, Math.ceil(n / rowsMin));
+    var best = maxCols;
+    var bestRest = n % maxCols;
+    for (var c = lo; c < maxCols; c++) {
+      if ((avail - (c - 1) * gap) / c > maxBtn) continue;
+      var rest = n % c;
+      if (rest === 0) {
+        best = c;
+        bestRest = 0;
+        break;
+      }
+      if (bestRest !== 0 && rest > bestRest) {
+        best = c;
+        bestRest = rest;
+      }
+    }
+    return best;
+  }
+  function syncCols(el) {
+    if (!el || !el.classList.contains("open")) return;
+    var n = el.querySelectorAll("button").length;
+    var c = pickCols(el, n);
+    if (c) el.style.gridTemplateColumns = "repeat(" + c + ",minmax(0,1fr))";
   }
   function renderContext() {
     if (!panel) return;
@@ -3853,51 +3940,18 @@ function attachTouchUI(ctx, dom) {
       hideContext();
       return;
     }
-    var ctxW = TOUCH ? 44 : 32, ctxGap = TOUCH ? 8 : 4, padX = 16;
-    var host = panel.parentElement;
-    var avail = (host ? host.clientWidth : panel.clientWidth) - padX;
-    var fitAll = Math.floor((avail + ctxGap) / (ctxW + ctxGap));
-    var fit, hiddenActs;
-    if (fitAll >= acts.length) {
-      fit = acts.length;
-      hiddenActs = [];
-    } else {
-      fit = Math.max(0, Math.floor((avail - ctxW - ctxGap) / (ctxW + ctxGap)));
-      fit = Math.min(fit, acts.length);
-      hiddenActs = acts.slice(fit);
-    }
-    var linkFlag = state.linkMode ? "L" : "-";
-    var actKey = acts.join(",") + "|" + fit;
-    if (ctxKind === kind && ctxKey === key && ctxActKey === actKey && ctxLinkFlag === linkFlag && panel.classList.contains("open") && panel.childNodes.length) {
-      paintCtxMore();
-      return;
-    }
+    var actKey = acts.join(",") + "|" + (state.linkMode ? "L" : "-");
+    if (ctxKind === kind && ctxKey === key && ctxActKey === actKey && panel.classList.contains("open") && panel.childNodes.length) return;
     ctxKind = kind;
     ctxKey = key;
     ctxActKey = actKey;
-    ctxLinkFlag = linkFlag;
-    ctxHiddenActs = hiddenActs;
     panel.textContent = "";
-    acts.slice(0, fit).forEach(function(k) {
+    acts.forEach(function(k) {
       panel.appendChild(makeCtxBtn(k));
     });
-    if (hiddenActs.length) {
-      var mb = document.createElement("button");
-      mb.type = "button";
-      mb.className = "ctxbtn more";
-      mb.setAttribute("data-ctxmore", "1");
-      mb.setAttribute("data-name", "more actions");
-      mb.setAttribute("aria-label", "More actions");
-      mb.title = "More actions";
-      mb.innerHTML = "<span>\u22EF</span>";
-      panel.appendChild(mb);
-    } else if (tbmoreEl) {
-      tbmoreEl.textContent = "";
-      tbmoreEl.classList.remove("open");
-    }
     panel.classList.add("open");
+    syncCols(panel);
     bindLongName(panel);
-    paintCtxMore();
     ctxScroll = ctx.wrap ? { left: ctx.wrap.scrollLeft, top: ctx.wrap.scrollTop } : null;
     if (laneOf !== null && ctx.revealLane && TOUCH) {
       var top0 = ctx.wrap ? ctx.wrap.scrollTop : 0;
@@ -3906,33 +3960,19 @@ function attachTouchUI(ctx, dom) {
     }
   }
   function onCtxClick(e) {
-    var mb = e.target && e.target.closest ? e.target.closest("button[data-ctxmore]") : null;
-    if (mb) {
-      ctxMoreOpen = !ctxMoreOpen;
-      paintCtxMore();
-      return;
-    }
     var b = e.target && e.target.closest ? e.target.closest("button[data-act]") : null;
     if (!b) return;
     doAct(b.getAttribute("data-act"));
   }
   if (panel) panel.addEventListener("click", onCtxClick);
-  if (tbmoreEl) tbmoreEl.addEventListener("click", onCtxClick);
   var QUICK = ["0", "1", "x", "z"];
-  var dockKey = null, moreOpen = false, dockHidden = [], lastDockH = -1;
+  var dockKey = null;
   function hideDock() {
     dockKey = null;
-    moreOpen = false;
-    dockHidden = [];
     if (dock) {
       dock.textContent = "";
       dock.classList.remove("open");
     }
-    if (more) {
-      more.textContent = "";
-      more.classList.remove("open");
-    }
-    syncMoreHeight();
   }
   function chipButton(v) {
     return '<svg viewBox="0 0 ' + G.CHIP_W + " " + G.CHIP_H + '" aria-hidden="true">' + chipGlyph(v) + "</svg><span>" + esc(v) + "</span>";
@@ -3968,165 +4008,43 @@ function attachTouchUI(ctx, dom) {
       hideDock();
       return;
     }
-    var chipW = TOUCH ? 48 : 30, gap = TOUCH ? 6 : 4;
-    var moreW = TOUCH ? 44 : 30;
-    var tailW = TOUCH ? 18 : 0;
-    var actW = TOUCH ? 44 : 32;
     var acts = DOCK_ACTS.filter(availCell);
     var charsOn = !state.linkMode;
     var order = QUICK.concat(Core.ALL.filter(function(v) {
       return QUICK.indexOf(v) < 0;
     }));
     if (state.ch && order.indexOf(state.ch) < 0) order.unshift(state.ch);
-    var items = [];
+    var key = state.selCell.lane + "@" + state.selCell.tick + "|" + state.ch + "|" + acts.join(",") + "|" + (charsOn ? "-" : "L");
+    if (key === dockKey) return;
+    dockKey = key;
+    dock.textContent = "";
     acts.forEach(function(a) {
-      items.push({ t: "act", k: a });
+      dock.appendChild(makeActBtn(a));
     });
     if (charsOn) order.forEach(function(v) {
-      items.push({ t: "ch", v });
+      dock.appendChild(makeChip(v));
     });
-    var host = dock.parentElement;
-    var budget = (host ? host.clientWidth : dock.clientWidth) - 16 - tailW;
-    var SEP = TOUCH ? 17 : 15;
-    var fit = 0, used = 0, seenActFit = false, sepDoneFit = false;
-    for (var fi = 0; fi < items.length; fi++) {
-      var it = items[fi];
-      var w = it.t === "act" ? actW : chipW;
-      var add = (fit ? gap : 0) + w;
-      if (it.t === "ch" && seenActFit && !sepDoneFit) add += SEP;
-      var reserve = fi < items.length - 1 ? gap + moreW : 0;
-      if (used + add + reserve > budget) break;
-      used += add;
-      fit++;
-      if (it.t === "act") seenActFit = true;
-      if (it.t === "ch" && seenActFit) sepDoneFit = true;
-    }
-    var hidden = items.slice(fit);
-    var key = state.selCell.lane + "@" + state.selCell.tick + "|" + state.ch + "|" + fit + "|" + items.length + "|" + (charsOn ? "-" : "L");
-    if (key === dockKey) {
-      paintMore();
-      return;
-    }
-    dockKey = key;
-    dockHidden = hidden;
-    dock.textContent = "";
-    var seenAct = false, sepDone = false;
-    items.slice(0, fit).forEach(function(it2) {
-      if (it2.t === "ch" && seenAct && !sepDone) {
-        var dp = document.createElement("span");
-        dp.className = "docksep";
-        dock.appendChild(dp);
-        sepDone = true;
-      }
-      if (it2.t === "act") {
-        seenAct = true;
-        dock.appendChild(makeActBtn(it2.k));
-      } else dock.appendChild(makeChip(it2.v));
-    });
-    if (more && hidden.length) {
-      var mb = document.createElement("button");
-      mb.type = "button";
-      mb.className = "chipbtn more";
-      mb.setAttribute("data-more", "1");
-      mb.setAttribute("data-name", "more characters");
-      mb.setAttribute("aria-label", "More characters");
-      mb.innerHTML = "<span>\u22EF</span>";
-      dock.appendChild(mb);
-    } else if (more) {
-      more.textContent = "";
-      more.classList.remove("open");
-    }
     dock.classList.add("open");
+    syncCols(dock);
     bindLongName(dock);
-    paintMore();
-  }
-  function paintMore() {
-    if (!more) return;
-    var mb = dock.querySelector(".chipbtn.more");
-    var open = !!moreOpen && dockHidden.length > 0;
-    if (mb) {
-      mb.classList.toggle("on", open);
-      mb.setAttribute("aria-expanded", String(open));
-    }
-    if (open) {
-      if (!more.classList.contains("open")) {
-        more.textContent = "";
-        dockHidden.forEach(function(it) {
-          more.appendChild(it.t === "act" ? makeActBtn(it.k) : makeChip(it.v));
-        });
-        more.classList.add("open");
-        bindLongName(more);
-      }
-    } else if (more.classList.contains("open")) {
-      more.textContent = "";
-      more.classList.remove("open");
-    }
-    syncMoreHeight();
-  }
-  function paintCtxMore() {
-    if (!panel) return;
-    var mb = panel.querySelector(".ctxbtn.more");
-    var open = !!ctxMoreOpen && ctxHiddenActs.length > 0;
-    if (mb) {
-      mb.classList.toggle("on", open);
-      mb.setAttribute("aria-expanded", String(open));
-    }
-    if (tbmoreEl) {
-      if (open) {
-        if (!tbmoreEl.classList.contains("open")) {
-          tbmoreEl.textContent = "";
-          ctxHiddenActs.forEach(function(k) {
-            tbmoreEl.appendChild(makeCtxBtn(k));
-          });
-          tbmoreEl.classList.add("open");
-          bindLongName(tbmoreEl);
-        }
-      } else if (tbmoreEl.classList.contains("open")) {
-        tbmoreEl.textContent = "";
-        tbmoreEl.classList.remove("open");
-      }
-    }
-    syncMoreHeight();
-  }
-  function isBigView() {
-    var el = document.documentElement;
-    return !el.classList.contains("is-embed") || !!state.fsEdit;
-  }
-  function syncMoreHeight() {
-    var dz = dock ? dock.parentElement : null;
-    if (dz) dz.classList.toggle("more-up", isBigView());
-    var h = dz && dz.offsetHeight || 0;
-    if (lastDockH < 0) {
-      lastDockH = h;
-      return;
-    }
-    if (h !== lastDockH) {
-      lastDockH = h;
-      if (ctx.reportHeight) ctx.reportHeight();
-    }
   }
   function onDockClick(e) {
     var b = e.target && e.target.closest ? e.target.closest("button") : null;
     if (!b) return;
-    if (b.getAttribute("data-more")) {
-      moreOpen = !moreOpen;
-      paintMore();
-      return;
-    }
     var ca = b.getAttribute("data-cellact");
     if (ca) {
       doAct(ca);
       return;
     }
     var ch = b.getAttribute("data-ch");
-    if (ch) {
-      moreOpen = false;
-      ctx.writeChar(ch);
-    }
+    if (ch) ctx.writeChar(ch);
   }
   if (dock) dock.addEventListener("click", onDockClick);
-  if (more) more.addEventListener("click", onDockClick);
   ctx.closeCharDock = hideDock;
+  if (ctx.on) ctx.on(window, "resize", function() {
+    syncCols(panel);
+    syncCols(dock);
+  });
   ctx.afterRedraw = function() {
     renderTopbar();
     renderContext();
@@ -4177,6 +4095,133 @@ function attachTouchUI(ctx, dom) {
   }, 500);
 }
 
+// ../TimingBench/src/editor/splitter.js
+var STORE = { cols: "tb-split-cols", rows: "tb-split-rows" };
+var MIN_PX = 220;
+var HARD_MIN = 10;
+var DEFAULT = 50;
+function attachSplitter(ctx, dom) {
+  var app = dom.app, bar = dom.splitter;
+  if (!app || !bar || !ctx.currentLayout) return;
+  var ratio = { cols: DEFAULT, rows: DEFAULT };
+  function layout() {
+    var l = ctx.currentLayout();
+    return l === "rows" ? "rows" : "cols";
+  }
+  function load() {
+    Object.keys(STORE).forEach(function(k) {
+      var v = NaN;
+      try {
+        v = parseFloat(localStorage.getItem(STORE[k]));
+      } catch (e) {
+      }
+      if (isFinite(v) && v >= HARD_MIN && v <= 100 - HARD_MIN) ratio[k] = v;
+    });
+  }
+  function clamp(k, v) {
+    var size = k === "cols" ? app.clientWidth : app.clientHeight;
+    if (!size) return v;
+    var lo = Math.max(HARD_MIN, MIN_PX / size * 100);
+    var hi = Math.min(100 - HARD_MIN, 100 - MIN_PX / size * 100);
+    if (lo > hi) return DEFAULT;
+    return Math.min(hi, Math.max(lo, v));
+  }
+  function paint() {
+    var k = layout();
+    var v = clamp(k, ratio[k]);
+    app.style.setProperty("--split", v.toFixed(2) + "%");
+    bar.setAttribute("aria-orientation", k === "cols" ? "vertical" : "horizontal");
+    bar.setAttribute("aria-valuenow", String(Math.round(v)));
+    bar.setAttribute("aria-valuemin", String(HARD_MIN));
+    bar.setAttribute("aria-valuemax", String(100 - HARD_MIN));
+    bar.title = "Drag to resize \xB7 double-click to reset";
+  }
+  function commit(k) {
+    try {
+      localStorage.setItem(STORE[k], String(Math.round(ratio[k] * 10) / 10));
+    } catch (e) {
+    }
+  }
+  function reset() {
+    var k = layout();
+    ratio[k] = DEFAULT;
+    paint();
+    commit(k);
+  }
+  var drag = null;
+  function onDown(e) {
+    if (e.button !== void 0 && e.button !== 0) return;
+    drag = { k: layout(), id: e.pointerId, moved: false };
+    if (bar.setPointerCapture) {
+      try {
+        bar.setPointerCapture(e.pointerId);
+      } catch (err) {
+      }
+    }
+    bar.classList.add("drag");
+    document.documentElement.classList.add("is-resizing");
+    document.documentElement.classList.toggle("is-resizing-rows", drag.k === "rows");
+    e.preventDefault();
+  }
+  function onMove(e) {
+    if (!drag || e.pointerId !== drag.id) return;
+    var r = app.getBoundingClientRect();
+    var p = drag.k === "cols" ? (e.clientX - r.left) / (r.width || 1) * 100 : (e.clientY - r.top) / (r.height || 1) * 100;
+    ratio[drag.k] = clamp(drag.k, p);
+    drag.moved = true;
+    app.style.setProperty("--split", ratio[drag.k].toFixed(2) + "%");
+    bar.setAttribute("aria-valuenow", String(Math.round(ratio[drag.k])));
+  }
+  function onUp(e) {
+    if (!drag) return;
+    var k = drag.k;
+    drag = null;
+    bar.classList.remove("drag");
+    document.documentElement.classList.remove("is-resizing", "is-resizing-rows");
+    if (bar.releasePointerCapture) {
+      try {
+        bar.releasePointerCapture(e.pointerId);
+      } catch (err) {
+      }
+    }
+    if (k) commit(k);
+    if (ctx.redraw) ctx.redraw();
+  }
+  if (ctx.on) {
+    ctx.on(bar, "pointerdown", onDown);
+    ctx.on(window, "pointermove", onMove, { passive: true });
+    ctx.on(window, "pointerup", onUp);
+    ctx.on(window, "pointercancel", onUp);
+    ctx.on(window, "resize", paint);
+  }
+  ctx.on(bar, "dblclick", function(e) {
+    e.preventDefault();
+    reset();
+  });
+  ctx.on(bar, "keydown", function(e) {
+    var k = layout();
+    var step = e.shiftKey ? 10 : 2;
+    var v = ratio[k];
+    if (k === "cols" ? e.key === "ArrowLeft" : e.key === "ArrowUp") v -= step;
+    else if (k === "cols" ? e.key === "ArrowRight" : e.key === "ArrowDown") v += step;
+    else if (e.key === "Home") v = HARD_MIN;
+    else if (e.key === "End") v = 100 - HARD_MIN;
+    else if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      reset();
+      return;
+    } else return;
+    e.preventDefault();
+    ratio[k] = clamp(k, v);
+    paint();
+    commit(k);
+    if (ctx.redraw) ctx.redraw();
+  });
+  load();
+  paint();
+  ctx.repaintSplitter = paint;
+}
+
 // ../TimingBench/src/editor/index.js
 function createEditor(dom) {
   var root = dom.root || document.documentElement;
@@ -4220,7 +4265,7 @@ function createEditor(dom) {
       edgeIdx: 0,
       phaseEdit: null,
       zoom: 1,
-      // 默认视图：双栏（左源码 / 右波形）。嵌入已移除，没有别的默认值。
+      // 默认视图：双栏（左源码 / 右波形）。视图只有两态，默认就是这一个。
       W: 0,
       H: 0,
       drag: null,
@@ -4426,6 +4471,7 @@ function createEditor(dom) {
     if (!dom.app) return;
     if (state.layout) dom.app.setAttribute("data-layout", state.layout);
     else dom.app.removeAttribute("data-layout");
+    if (ctx.repaintSplitter) ctx.repaintSplitter();
   }
   function toggleLayout() {
     state.layout = currentLayout() === "cols" ? "rows" : "cols";
@@ -4721,6 +4767,7 @@ function createEditor(dom) {
   createShapes(ctx);
   attachInteractions(ctx);
   attachTouchUI(ctx, dom);
+  attachSplitter(ctx, dom);
   var paint = ctx.redraw;
   ctx.redraw = function() {
     paint();
@@ -4777,7 +4824,7 @@ function createEditor(dom) {
 }
 
 // src/_tb-styles.js
-var tb_styles_default = '/* \u5171\u4EAB\u6837\u5F0F\uFF1A\u4E3B\u9875\u9762\u4E0A\u4E0B\u5206\u533A + \u6CE2\u5F62\u56FE\u5143\u3002 */\n:host{--bg:#fff;--panel:#fff;--src-bg:#f7f7f7;--hover:rgba(0,0,0,.05);--ink:#1f2328;--muted:#6b7078;--line:rgba(0,0,0,.10);--line2:rgba(0,0,0,.30);--accent:#185fa5;--accent-bg:#e9f2fc;--ok:#1d9e75;--ok-bg:#e1f5ee;--warn:#ba7517;--warn-bg:#faeeda;--err:#c0392b;--err-bg:#fcebeb;--bus:#ba7517;--bus-bg:#faeeda;--bus2:#fff;--bus3:#ffffb4;--bus4:#ffe0b9;--bus5:#b9e0ff;--bus6:#ccfdfe;--bus7:#cdfdc5;--bus8:#f0c1fb;--bus9:#f5c2c0;--wave-ink:var(--ink);--mono:ui-monospace,SFMono-Regular,Consolas,monospace;--dock-acts:47px;--dock-chars:40px;--sans:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif}\n@media (prefers-color-scheme:dark){:host{--bg:#191a1c;--panel:#222427;--src-bg:#202225;--hover:rgba(255,255,255,.07);--ink:#e9e9e6;--muted:#9b9b95;--line:rgba(255,255,255,.14);--line2:rgba(255,255,255,.3);--accent:#6cb0ee;--accent-bg:#14304a;--ok:#5dcaa5;--ok-bg:#12382b;--warn:#ef9f27;--warn-bg:#3a2a10;--err:#f09595;--err-bg:#3b1e1e;--bus:#ef9f27;--bus-bg:#3a2a10;--bus2:#3a3b3e;--bus3:#4a4a24;--bus4:#4a3520;--bus5:#1d3a55;--bus6:#1e4547;--bus7:#22452a;--bus8:#402748;--bus9:#4a2a28}}\n*{box-sizing:border-box}\n:host{display:block}\n.tb-root{margin:0;background:var(--bg);color:var(--ink);font:13px/1.6 var(--sans);overflow:hidden;display:flex;flex-direction:column;height:100%}\n/* \u5206\u5C4F\uFF1A\u5DE6\u53F3\uFF08\u5DE6\u4EE3\u7801 / \u53F3\u65F6\u5E8F\u56FE\uFF09\u4E3A\u9ED8\u8BA4\uFF1BHUD \u7684 \u21C4 / \u21C5 \u6309\u94AE\u53EF\u5207\u6210\u4E0A\u4E0B\uFF0C\u9009\u62E9\u4F1A\u8BB0\u4F4F\u3002\n   \u6CA1\u6709\u663E\u5F0F\u9009\u62E9\u65F6\u6309\u5BBD\u5EA6\u81EA\u9002\u5E94\uFF08\u7A84\u7A97\u53E3\u9000\u56DE\u4E0A\u4E0B\uFF0C\u89C1\u4E0B\u9762\u7684\u5A92\u4F53\u67E5\u8BE2\uFF09\u3002 */\n.app{display:grid;grid-template-columns:minmax(320px,34%) minmax(0,1fr);flex:1 1 auto;min-height:0}\n.app[data-layout="rows"]{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) minmax(0,1fr)}\n.app[data-layout="rows"] .pane.src{border-right:0;border-bottom:1px solid var(--line)}\n.app[data-layout="cols"]{grid-template-columns:minmax(320px,34%) minmax(0,1fr);grid-template-rows:minmax(0,1fr)}\n.pane{position:relative;min-width:0;min-height:0;overflow:hidden}\n.pane.src{background:var(--src-bg);border-right:1px solid var(--line)}\n/* \u684C\u9762\u5BBD\u5C4F = \u5DE6\u4EE3\u7801 / \u53F3\u65F6\u5E8F\u56FE\uFF082026-11-13\uFF09\u3002\u7A84\u7A97\u53E3\uFF08\u9F20\u6807\u4F46\u6CA1\u6A2A\u5411\u7A7A\u95F4\uFF09\u56DE\u9000\u6210\u4E0A\u4E0B\u5206\u533A\uFF0C\n   \u89E6\u6478\u7AEF\u53E6\u6709\u81EA\u5DF1\u7684\u89C4\u5219\uFF08\u89C1 .is-touch \u6BB5\uFF09\u3002 */\n@media (max-width: 860px){\n  .app{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) minmax(0,1fr)}\n  .pane.src{border-right:0;border-bottom:1px solid var(--line)}\n}\n.gutter{position:absolute;left:0;top:0;bottom:0;width:40px;padding:12px 9px 12px 0;text-align:right;font:12px/1.65 var(--mono);color:var(--muted);border-right:1px solid var(--line);overflow:hidden;white-space:pre;user-select:none;pointer-events:none;\n  /* \u884C\u53F7\u69FD\u5FC5\u987B**\u76D6\u4F4F**\u6A2A\u5411\u6EDA\u52A8\u540E\u94BB\u5230\u5B83\u4E0B\u9762\u7684\u6E90\u7801\uFF1Atextarea \u662F\u540E\u51FA\u73B0\u7684\u7EDD\u5BF9\u5B9A\u4F4D\u5143\u7D20\uFF0C\n     \u4E0D\u7ED9\u8FD9\u4E00\u5C42\u52A0\u4E0D\u900F\u660E\u5E95\u8272\u548C\u5C42\u5E8F\uFF0C\u957F\u884C\u5F80\u5DE6\u6EDA\u65F6\u5B57\u7B26\u4F1A\u538B\u5728\u884C\u53F7\u4E0A\uFF08\u4E24\u4E32\u6570\u5B57 / \u5B57\u6BCD\u53E0\u5728\u4E00\u8D77\uFF09\u3002\n     \u5E95\u8272\u4E0E .pane.src \u4E00\u81F4\uFF0C\u89C6\u89C9\u4E0A\u4ECD\u662F\u300C\u4E00\u6761\u8BA9\u51FA\u6765\u7684\u8FB9\u300D\u3002 */\n  background:var(--src-bg);z-index:2}\n/* \u53EA\u4F5C\u7528\u4E8E\u6E90\u7801\u6846\uFF1A.shareCode \u7B49\u5176\u5B83 textarea \u4E0D\u80FD\u88AB\u8FD9\u6761\u7EDD\u5BF9\u5B9A\u4F4D\u89C4\u5219\u8BEF\u4F24 */\n.pane.src textarea{position:absolute;inset:0;width:100%;height:100%;resize:none;border:0;outline:none;background:transparent;color:var(--ink);padding:12px 10px 12px 50px;font:12px/1.65 var(--mono);tab-size:2;white-space:pre;overflow:auto}\n/* \u6CE2\u5F62\u533A = \u753B\u5E03 + \u5E95\u90E8\u4E24\u6761\uFF08\u52A8\u4F5C / \u5B57\u7B26\uFF09\u3002\u4E24\u6761\u662F**\u771F\u5B9E\u7684 flex \u5B50\u9879**\uFF0C\n   \u6240\u4EE5\u4E0D\u518D\u76D6\u5728\u6CE2\u5F62\u4E0A\u3001\u4E5F\u4E0D\u9700\u8981\u753B\u5E03\u4E3A\u5B83\u4EEC\u9884\u7559\u9AD8\u5EA6\u3002 */\n.pane.diagram{position:relative;display:flex;flex-direction:column;min-height:0}\n.svgwrap{position:relative;flex:1 1 auto;min-height:0;overflow:auto;background:var(--bg);outline:none}\n/* \u505C\u9760\u533A**\u6052\u9AD8**\uFF1A\u52A8\u4F5C\u6761 + \u5B57\u7B26\u6761\u4E24\u6761\u90FD\u7B97\u8FDB\u9AD8\u5EA6\uFF0C\u54EA\u6015\u6B64\u523B\u53EA\u5F00\u4E86\u4E00\u6761\u3002\n   \u4E3A\u4EC0\u4E48\u5FC5\u987B\u6052\u9AD8\uFF08\u7528\u6237\u5B9E\u6D4B\u300C\u9009\u4E2D\u5143\u7D20\u53C8\u79FB\u52A8\u65F6\u753B\u9762\u53CD\u590D\u8DF3\u52A8\u300D\uFF09\uFF1A\n   \u66FE\u7531\u5185\u5BB9\u51B3\u5B9A\u9AD8\u5EA6 \u2014\u2014 \u5B57\u7B26\u6761\u53EA\u5728\u300C\u9009\u4E2D\u683C\u300D\u65F6\u51FA\u73B0\uFF0C\u4E8E\u662F\u70B9\u683C\u5B50\u753B\u5E03\u77EE 47px\u3001\u70B9\u884C\u540D\u53C8\u957F\u56DE 40px\uFF0C\n   \u753B\u5E03\u5E95\u8FB9\u8DDF\u7740\u8DF3\uFF0C120ms \u540E\u7684\u53BB\u6296\u91CD\u753B\u518D\u6765\u4E00\u6B21\u3002\u6240\u4EE5\u9AD8\u5EA6\u5FC5\u987B\u662F\u5E38\u91CF\u3002\n   **0.18.0\uFF1A\u5E38\u91CF\u53D6\u4E24\u8005\u7684\u8F83\u5927\u8005\uFF0C\u4E0D\u518D\u76F8\u52A0\u3002** \u56E0\u4E3A\u8FD9\u4E24\u6761\u5DF2\u7ECF**\u4E92\u65A5**\uFF1A\u4E0A\u4E0B\u6587\u6761\u53EA\u5728\u9009\u4E2D\n   \u884C / \u5217\u65F6\u51FA\u73B0\uFF0C\u5B57\u7B26\u505C\u9760\u6761\u53EA\u5728\u9009\u4E2D\u683C\u65F6\u51FA\u73B0\uFF08\u683C\u7EA7\u4E09\u4E2A\u52A8\u4F5C\u5DF2\u632A\u8FDB\u505C\u9760\u6761\u5DE6\u4FA7\uFF09\uFF0C\u540C\u4E00\u65F6\u523B\u6700\u591A\n   \u4E00\u6761\u3002\u6309\u300C\u4E24\u6761\u90FD\u5728\u300D\u9884\u7559\u7B49\u4E8E\u6C38\u8FDC\u7A7A\u7740\u4E00\u6574\u884C\uFF1B\u53D6 max \u65E2\u4FDD\u6301\u6052\u5B9A\uFF08\u4E0D\u6296\uFF09\uFF0C\u53C8\u53EA\u5360\u4E00\u884C\u3002\n   \u53EA\u8BFB\u5361\u7247\u4E0D\u9884\u7559\uFF08\u90A3\u91CC\u6CA1\u6709\u8FD9\u4E24\u6761\uFF0C`reportHeight` \u4E5F\u4E0D\u80FD\u88AB\u5B83\u6491\u9AD8\uFF09\u3002 */\n/* \u9875\u9762 / \u89E6\u6478\u7AEF\uFF1A\u6052\u9AD8\uFF08\u4E24\u6761\u5B50\u6761\u4E92\u65A5\uFF0C\u53D6 max \u5C31\u53EA\u5360\u4E00\u884C\uFF09\uFF0C\u5207\u6362\u9009\u4E2D\u5BF9\u8C61\u65F6\u7248\u9762\u4E00\u52A8\u4E0D\u52A8\u3002\n   \u5D4C\u5165\u5361\u7247\u5355\u72EC\u8986\u76D6\u6210 height:auto \u2014\u2014 \u5361\u7247\u662F\u300C\u8D34\u7740\u5185\u5BB9\u957F\u300D\u7684\uFF0C\u7559\u4E00\u6761\u6CA1\u6709\u6309\u94AE\u7684\u7A7A\u5E26\u5C31\u662F\u7EAF\u6D6A\u8D39\n   \uFF08\u7528\u6237\u5B9E\u6D4B\u300C\u6CE2\u5F62\u548C\u6700\u4E0B\u6392\u6309\u94AE\u4E4B\u95F4\u4E00\u6BB5\u65E0\u7528\u7A7A\u767D\u300D\uFF09\u3002 */\n.dockzone{position:relative;flex:0 0 auto;display:flex;flex-direction:column;justify-content:flex-end;z-index:20;\n  height:calc(max(var(--dock-acts), var(--dock-chars)) + env(safe-area-inset-bottom,0px))}\n/* \u56DB\u6761\u5B50\u6761\u5404\u81EA\u5B9A\u9AD8\u3001\u7EDD\u4E0D\u538B\u7F29\uFF1Adockzone \u7684\u9AD8\u5EA6\u662F\u6309\u5B83\u4EEC\u7684\u5B9E\u6D4B\u503C\u52A0\u51FA\u6765\u7684\uFF0C\n   \u4E00\u65E6\u5141\u8BB8 flex \u6536\u7F29\uFF0C\u6309\u94AE\u4F1A\u88AB\u538B\u6389\u51E0\u50CF\u7D20\uFF08\u5B9E\u6D4B panel 57 vs \u9700\u8981 60\uFF0C\u5E95\u8FB9\u76F4\u63A5\u88C1\u6389\uFF09\u3002 */\n.dockzone > *{flex:0 0 auto}\n.is-readonly .dockzone{height:0}\n/* \u5D4C\u5165\u5361\u7247\uFF1A\u6CA1\u6709\u6309\u94AE\u65F6\u4E0D\u5360\u4F4D\uFF080\uFF09\uFF0C\u6709\u6309\u94AE\u65F6\u53EA\u5360\u4E00\u884C\uFF1B\u4E24\u6761\u5B50\u6761\u540C\u9AD8 \u21D2 \u9009\u683C\u2194\u9009\u884C\u4E0D\u8DF3\u3002 */\n/* \u79BB\u5C4F\u6587\u672C\u6D4B\u91CF\u5BB9\u5668\uFF1A\u53EA\u7ED9 shapes.js \u91CF\u884C\u540D\u5BBD\u5EA6\u7528\uFF0C\u6C38\u8FDC\u4E0D\u53EF\u89C1\u3001\u4E0D\u5403\u4E8B\u4EF6 */\n.measure{position:absolute;left:-9999px;top:-9999px;width:0;height:0;overflow:hidden;pointer-events:none;visibility:hidden;font-family:var(--sans)}\n/* \u952E\u76D8\u7528\u6237\u7528 Tab / F6 \u8FDB\u5165\u753B\u5E03\u65F6\u7ED9\u51FA\u53EF\u89C1\u7126\u70B9\uFF1B\u9F20\u6807\u70B9\u51FB\u4E0D\u663E\u793A */\n.svgwrap:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}\nsvg{display:block;font-family:var(--sans)}\n.errdot{position:absolute;right:10px;top:10px;width:8px;height:8px;border-radius:50%;background:var(--err);cursor:help;z-index:5}\n/* \u963B\u6B62\u7C7B\u63D0\u793A\uFF1A\u7EA2\u70B9\u8109\u51B2\u4E00\u6B21\uFF0C\u8BA9\u300C\u521A\u88AB\u62D2\u7EDD\u300D\u5728\u6E90\u7801\u533A\u4E5F\u6709\u4E00\u773C\u53EF\u89C1\u7684\u53CD\u9988\uFF08\u6587\u672C\u539F\u56E0\u4ECD\u5728 title \u91CC\uFF09 */\n.errdot.pulse{animation:dotPulse 700ms ease-out}\n@keyframes dotPulse{\n  0%{box-shadow:0 0 0 0 var(--err)}\n  55%{box-shadow:0 0 0 8px rgba(192,57,43,0)}\n  100%{box-shadow:0 0 0 0 rgba(192,57,43,0)}\n}\n/* \u88AB\u62E6\u4F4F\u7684\u76EE\u6807\u4E0A\u95EA\u4E00\u5708\u7EA2\u73AF\uFF1A\u53EA\u52A8\u4E0D\u900F\u660E\u5EA6\u4E0E\u7EBF\u5BBD\uFF0C\u4E0D\u4F4D\u79FB\u3001\u4E0D\u6539\u5E03\u5C40 */\n.denyRing{fill:none;stroke:var(--err);stroke-width:2.4;pointer-events:none;\n  animation:denyRing 460ms ease-out forwards}\n@keyframes denyRing{\n  0%{opacity:0;stroke-width:3.4}\n  15%{opacity:.95;stroke-width:3.4}\n  100%{opacity:0;stroke-width:1.2}\n}\n[hidden]{display:none!important}\n/* \u753B\u5E03\u5185\u4E0D\u518D\u6709 HUD\uFF08\u64A4\u9500 / \u91CD\u505A / \u5206\u5C4F / \u5D4C\u5165\u5DF2\u79FB\u5230\u9875\u9762\u9876\u680F\uFF09 */\n.colhead text{pointer-events:none}\n/* \u884C\u5934 / \u5217\u5934\uFF080.25.0\uFF09\uFF1A\u501F\u8868\u683C\u7684\u8BFB\u6CD5 \u2014\u2014 \u60AC\u505C\u5148\u7ED9\u4E00\u5C42\u6D45\u5E95\u9884\u89C8\uFF0C\u9009\u4E2D\u540E\u5B9A\u4F4F\u3002\n   \u884C\u5934\u662F\u884C\u540D\u533A\u90A3\u6761\u547D\u4E2D\u5E26\uFF1B\u5217\u5934\u662F\u8868\u5934\u90A3\u4E00\u683C\uFF0C\u60AC\u505C\u65F6\u6574\u5217\u94FA\u4E00\u5C42\uFF08.colBand \u753B\u5728\u8868\u5934\u7EC4\u91CC\uFF0C\n   \u9AD8\u5EA6\u5EF6\u4F38\u5230\u753B\u5E03\u5E95\u90E8\uFF09\u3002\u884C\u540D\u6587\u5B57\u672C\u8EAB\u4E0D\u63A5\u6536\u6307\u9488\uFF0C\u60AC\u505C\u968F\u6574\u6761\u884C\u5934\u8D70\uFF1B\u03C6 / T \u5FBD\u6807\u4F8B\u5916\u3002 */\n.laneHead{transition:fill .12s}\n.laneHead:hover{fill:var(--hover)}\n.laneHead.cur{fill:var(--hover)}            /* \u8FD9\u4E00\u884C\u91CC\u6709\u9009\u4E2D\u7684\u683C\u5B50\uFF1A\u7ED9\u4E2A\u5F31\u63D0\u793A\uFF0C\u4E0D\u94FA\u6574\u884C */\n.laneName{pointer-events:none}\n.laneName .laneMeta{pointer-events:all}     /* \u03C6 / T \u4ECD\u662F\u53EF\u70B9\u5165\u53E3\uFF08\u684C\u9762\u9760 tspan \u81EA\u8EAB\uFF09 */\n.colBand{fill:transparent;transition:fill .12s}\n.colhead:hover .colBand{fill:var(--hover)}\n.colhead.sel .colBand{fill:var(--accent-bg);opacity:.55}\n/* \u516D\u70B9\u628A\u624B\uFF080.25.0\uFF09\uFF1A\u53EA\u5728\u9009\u4E2D\u683C / \u9009\u4E2D\u884C\u65F6\u51FA\u73B0\uFF0C\u62D6\u52A8\u53EF\u79FB\u52A8\u6574\u884C / \u6574\u5217\u3002\n   \u9759\u6001\u65F6\u53EA\u7528 muted \u7070\u70B9\uFF0C\u4E0D\u62A2\u89C6\u89C9\uFF1B\u60AC\u505C\u53D8\u5F3A\u8C03\u8272\u5E76\u7ED9 grab \u5149\u6807\u3002 */\n.hnd{cursor:grab}\n.hnd:hover{fill:var(--accent)}\n.hnd:active{cursor:grabbing}\n.dropLine{stroke:var(--accent);stroke-width:2;stroke-dasharray:4 3;pointer-events:none}\n.cellSel{fill:none;stroke:var(--accent);stroke-width:1.6;stroke-dasharray:3 2;pointer-events:none}\n/* \u8FDE\u7EBF\u6A21\u5F0F\u7684\u7AEF\u70B9\u5149\u6807\uFF1A\u4E0E\u666E\u901A\u9009\u4E2D\u6846\u4E92\u65A5\uFF0C\u53EA\u670D\u52A1\u952E\u76D8 / \u89E6\u6478\u7AEF\u70B9\u5B9A\u4F4D */\n.linkCursor{fill:none;stroke:var(--accent);stroke-width:2;stroke-dasharray:5 3;pointer-events:none}\n.linkMode .linkCursor{stroke-width:2.4}\n/* \u6570\u636E\u6807\u7B7E\u7684\u7F16\u8F91\u5165\u53E3\u662F\u4E0A\u4E0B\u6587\u6761\uFF08ACTS.cell\uFF09\uFF0C\u753B\u5E03\u4E0A\u4E0D\u518D\u6709 \u270E \u5FBD\u6807 */\n.connectPreview{fill:none;stroke:var(--accent);stroke-width:1.6;stroke-dasharray:4 3;pointer-events:none;opacity:.8}\n/* \u5C31\u5730\u7F16\u8F91\uFF1A\u8F93\u5165\u6846\u662F SVG \u5185\u7684 foreignObject\uFF0C\u8DDF\u7740\u56FE\u5143\u4E00\u8D77\u6EDA\u52A8 */\n/* \u5E95\u90E8\u53EA\u4FDD\u7559\u4E0A\u4E0B\u6587\u64CD\u4F5C\u533A\uFF1A\u9009\u4E2D\u683C / \u8FDE\u7EBF\u6001\u624D\u51FA\u73B0\u5185\u5BB9 */\n.inline-fo{overflow:visible}\n.inline-edit{width:100%;height:100%;box-sizing:border-box;font:12px var(--mono);padding:2px 6px;border:1px solid var(--accent);border-radius:5px;background:var(--panel);color:var(--ink);box-shadow:0 3px 12px rgba(0,0,0,.22);outline:none}\n.inline-edit:focus{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-bg),0 3px 12px rgba(0,0,0,.22)}\n/* \u96F6\u884C\u7A7A\u6001\uFF1A\u6574\u884C\u662F\u53EF\u70B9\u7684\u5360\u4F4D\u6309\u94AE\uFF0C\u60AC\u505C\u65F6\u63CF\u8FB9\u4E0E\u52A0\u53F7\u4E00\u8D77\u63D0\u4EAE */\n.emptyRow{cursor:pointer}\n.emptyRow:hover rect{stroke:var(--accent)}\n.emptyRow:hover .plusBox{fill:var(--accent-bg)}\n.emptyRow:hover .emptyWave{opacity:.7}\n.laneMeta{cursor:text}\n.laneMeta:hover{fill:var(--accent)}\n/* \u5206\u7EC4\u540D\u4EC5\u5728\u7F16\u8F91\u6001\u53EF\u70B9\u6539\uFF08\u6709 data-act \u65F6\u624D\u662F\u53EF\u70B9\u533A\u57DF\uFF09 */\n.laneGroupName[data-act]{cursor:text}\n.laneGroupName[data-act]:hover{fill:var(--accent)}\n/* \u5217\u5934\u53EA\u5269\u7F16\u53F7\uFF1A+ \u2212 | \u4E09\u4E2A\u5217\u52A8\u4F5C\u5DF2\u6536\u8FDB\u4E0A\u4E0B\u6587\u6761\uFF08#tbpanel\uFF09\uFF0C\u753B\u5E03\u4E0A\u4E0D\u518D\u60AC\u505C\u51FA\u6309\u94AE */\n.colhead{cursor:pointer}\n/* \u53C2\u8003\u4E0A\u6E38\u9ED8\u8BA4\u76AE\u80A4\u5916\u89C2\u89C4\u8303\u81EA\u884C\u7ED8\u5236\uFF1A\u5B9E\u7EBF / \u659C\u7EBF\u9634\u5F71 / \u865A\u7EBF / \u7BAD\u5934 / \u603B\u7EBF\u914D\u8272 */\n.waveInk,.waveHair,.waveDash,.waveArrow,.waveBus,.waveLabel{pointer-events:none}\n.waveInk{fill:none;stroke:var(--wave-ink);stroke-width:1.25;stroke-linecap:round;stroke-linejoin:round}\n.waveHair{fill:none;stroke:var(--wave-ink);stroke-width:.65;opacity:.8}\n.waveDash{fill:none;stroke:var(--wave-ink);stroke-width:1.25;stroke-dasharray:2 2}\n.waveArrow{fill:var(--wave-ink);stroke:none}\n.waveBus{stroke:none}\n/* bus \u6BB5\u7684\u8F6E\u5ED3\u5355\u72EC\u4E00\u6761 path\uFF1A\u6BB5\u5185\u4E0D\u753B\u7AD6\u8FB9\uFF0C\u6BB5\u4E0E\u6BB5\u4E4B\u95F4\u624D\u4E0D\u4F1A\u51FA\u73B0\u300C\u88AB\u5207\u4E00\u5200\u300D\u7684\u63A5\u7F1D */\n.waveBusInk{fill:none;stroke:var(--wave-ink);stroke-width:1;stroke-linejoin:round;pointer-events:none}\n.waveLabel{fill:var(--ink);font-size:10px}\n/* \u53EA\u8BFB\u5361\u7247\u4E0E\u7F16\u8F91\u6001\u5171\u7528\u540C\u4E00\u5957\u6392\u7248\uFF1A\u4E0D\u53E6\u8BBE\u5B57\u53F7 / \u5B57\u8272\uFF08\u53EA\u8BFB\u6001\u53EA\u662F\u5C11\u753B\u7F16\u8F91\u63A7\u4EF6\uFF09\u3002 */\n/* \u6E90\u7801 wave \u6BD4\u5168\u5C40\u5468\u671F\u6570\u77ED\u65F6\uFF0C\u5C3E\u90E8\u6309 repeater \u5EF6\u7EED\u753B\u51FA\u53EF\u7EED\u5199\u533A */\n.tailSlot{opacity:.78;pointer-events:none}\n.tailCell:hover{fill:var(--accent-bg)}\n.bus2{fill:var(--bus2)}.bus3{fill:var(--bus3)}.bus4{fill:var(--bus4)}.bus5{fill:var(--bus5)}\n.bus6{fill:var(--bus6)}.bus7{fill:var(--bus7)}.bus8{fill:var(--bus8)}.bus9{fill:var(--bus9)}\n/* ---------------------------------------------------------------------------\n   \u89E6\u6478\u7248\u5F0F\uFF1A\u7C97\u6307\u9488\uFF08\u6216 ?touch=1\uFF09\u65F6\u7531 main.js \u5728 <html> \u4E0A\u52A0 .is-touch\u3002\n   \u684C\u9762\u662F\u300C\u5DE6\u4EE3\u7801 / \u53F3\u65F6\u5E8F\u56FE\u300D+ \u65E0\u5E38\u9A7B\u6587\u5B57\uFF1B\u89E6\u6478\u7AEF\u540C\u5C4F\u4E24\u533A\u3001\u65B9\u5411\u53EF\u7531 HUD \u5207\u6362\uFF0C\n   \u628A\u684C\u9762\u9760 hover \u5B8C\u6210\u7684\u64CD\u4F5C\u6362\u6210\u53EF\u70B9\u6309\u7684\u5E38\u9A7B\u63A7\u4EF6\uFF08\u4E0A\u4E0B\u6587\u6761 / \u505C\u9760\u6761\uFF09\u3002\n   \u6807\u7B7E\u9875\uFF08.tabbar\uFF09\u5DF2\u5728 0.9.13 \u5220\u9664 \u2014\u2014 \u4E24\u533A\u540C\u5C4F\u540E\u5B83\u53EA\u6539\u4E00\u4E2A\u6CA1\u6709\u6D88\u8D39\u8005\u7684 data-view \u5C5E\u6027\u3002\n   --------------------------------------------------------------------------- */\n.tbpanel,.toast{display:none}\n/* \u5168\u5C40\u9876\u680F\uFF082026-11-14 \u8D77\uFF09\uFF1A\u64A4\u9500 / \u91CD\u505A / \u5E03\u5C40 / \u751F\u6210\u5D4C\u5165\u4EE3\u7801\uFF08\u8FDE\u7EBF 0.9.17 \u8D77\u79FB\u5230\u5E95\u90E8\u52A8\u4F5C\u884C\uFF09\u3002\n   \u8FD9\u4E9B\u52A8\u4F5C\u4E0E\u300C\u753B\u5E03\u5185\u5BB9\u300D\u65E0\u5173\uFF0C\u5DE6\u53F3\u5206\u680F\u65F6\u5FC5\u987B\u6A2A\u8DE8\u4E24\u680F \u2014\u2014 \u539F\u5148\u5B83\u4EEC\u753B\u5728 SVG \u91CC\uFF0C\n   \u53EA\u80FD\u5728\u6CE2\u5F62\u533A\u51FA\u73B0\uFF0C\u800C\u4E14\u8981\u9760 translate \u8865\u507F\u8DDF\u968F\u6EDA\u52A8\u3002 */\n.topbar{display:flex;align-items:center;gap:6px;flex:0 0 40px;padding:0 10px;\n  background:var(--panel);border-bottom:1px solid var(--line);user-select:none}\n.topbar .hudBtn{min-width:32px;height:26px;padding:0 7px;border:1px solid var(--line);\n  border-radius:6px;background:var(--src-bg);color:var(--ink);cursor:pointer;\n  display:grid;place-items:center;font:600 14px/1 var(--sans)}\n.topbar .hudBtn:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}\n.topbar .hudBtn[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-bg);color:var(--accent)}\n.topbar .hudBtn.dim,.topbar .hudBtn:disabled{opacity:.4;cursor:default}\n/* \u89C6\u56FE\u5207\u6362\u952E\uFF1A\u7B26\u53F7**\u539F\u6837\u590D\u7528**\u65E7\u4E09\u6BB5\u63A7\u4EF6\u91CC\u4EE3\u8868\u4EE3\u7801\u7684\u90A3\u4E2A { }\uFF0C\u5B57\u53F7/\u5B57\u4F53\u4E0E hudBtn \u5BF9\u9F50\uFF1B\n   \u9760**\u989C\u8272**\u8868\u8FBE\u72B6\u6001 \u2014\u2014 \u7070 = \u4EE3\u7801\u533A\u5173\u7740\uFF0C\u4EAE = \u5F00\u7740\u3002\n   \u671F\u95F4\u8BD5\u8FC7\u65B9\u6CE2/\u5206\u680F\u4E24\u79CD\u81EA\u7ED8 SVG\uFF1A16px \u4E0B\u7EC6\u8282\u8BA4\u4E0D\u51FA\uFF0C\u4E14\u56FE\u6807\u6765\u56DE\u6362\u4F1A\u8BA9\u4EBA\u4EE5\u4E3A\u6309\u94AE\u4E5F\u6362\u4E86\u3002 */\n.topbar .viewBtn{min-width:38px;height:26px;padding:0 8px;border:1px solid var(--line);border-radius:6px;\n  background:var(--src-bg);color:var(--muted);cursor:pointer;font:600 14px/1 var(--sans)}\n.topbar .viewBtn:hover{color:var(--accent);border-color:var(--accent)}\n.topbar .viewBtn.sel{color:var(--accent);border-color:var(--accent);background:var(--accent-bg)}\n.is-touch .topbar .viewBtn{min-width:44px;height:44px;font-size:18px}\n/* \u4E24\u89C6\u56FE\u663E\u9690\uFF080.25.0 \u53D6\u6D88\u300C\u53EA\u4EE3\u7801\u300D\uFF09\uFF1Adata-view \u7531\u72B6\u6001\u5C42\u5199\u5230 .app \u4E0A\u3002\n   both = \u4E24\u4E2A pane \u90FD\u5728\uFF1Bdiagram = \u53EA\u7559\u6CE2\u5F62\u5E76\u628A grid \u6536\u6210\u5355\u683C\u3002\n   \u7528 display:none \u800C\u975E visibility\uFF0C\u8BA9\u9690\u85CF\u7684 textarea \u4E0D\u53C2\u4E0E Tab \u5E8F\u5217\u3001\u4E5F\u4E0D\u5403\u7126\u70B9\u3002 */\n.app[data-view="diagram"]{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr)}\n.app[data-view="diagram"] .pane.src{display:none}\n/* \u53EA\u8BFB\u6001\u6CA1\u6709\u4EFB\u4F55\u5168\u5C40\u52A8\u4F5C \u2192 \u9876\u680F\u6574\u6761\u4E0D\u5360\u4F4D\uFF08\u5426\u5219\u5361\u7247 iframe \u4F1A\u767D\u767D\u9AD8 40px\uFF09 */\n.topbar:empty{display:none}\n.is-touch{--dock-acts:61px;--dock-chars:56px}\n.is-touch .topbar{flex:0 0 54px;padding:0 8px;gap:8px}\n.is-touch .topbar .hudBtn{min-width:44px;height:44px;padding:0;font-size:18px;border-radius:10px}\n.is-touch body{overflow:hidden}\n.is-touch .app{flex:1 1 auto;height:auto;min-height:0}\n/* \u89E6\u6478\u7AEF\u4E0D\u518D\u5206\u300C\u6E90\u7801\u9875 / \u65F6\u5E8F\u56FE\u9875\u300D\u4E24\u9875\uFF1A\u4E24\u533A\u540C\u5C4F\uFF0C\u65B9\u5411\u540C HUD \u7684\u5207\u6362\u6309\u94AE */\n\n.is-touch .pane.src{border-right:0;border-bottom:0}\n.is-touch .gutter{font-size:13px;line-height:1.9}\n.is-touch .pane.src textarea{font-size:14px;line-height:1.9;padding-left:52px}\n/* \u753B\u5E03\u8FD9\u4E00\u5C42\uFF1A\u5141\u8BB8\u5355\u6307\u539F\u751F\u5E73\u79FB\u4E0E\u60EF\u6027\uFF08`pan-x pan-y`\uFF09\uFF0C**\u4F46\u628A\u300C\u6D4F\u89C8\u5668\u6574\u9875\u7F29\u653E\u300D\u5173\u6389**\u3002\n   \u8FD9\u4E00\u6761\u662F\u634F\u5408\u7F29\u653E\u7684\u524D\u63D0\uFF0C\u4E0D\u662F\u987A\u624B\u6539\u7684\uFF1A`manipulation` \u7684\u8BED\u4E49\u662F pan + **pinch-zoom**\uFF0C\n   \u4E24\u6307\u843D\u4E0B\u65F6\u6D4F\u89C8\u5668\u4F1A\u628A\u5B83\u5F53\u6210\u9875\u9762\u7F29\u653E\u5403\u6389 \u2014\u2014 CDP \u4E24\u6307\u62C9\u5F00\u5B9E\u6D4B\uFF1Apointercancel\xD72\u3001\n   visualViewport.scale 1\u21924.96\u3001\u7F16\u8F91\u5668\u8FDE\u4E00\u4E2A pointermove \u90FD\u6536\u4E0D\u5230\uFF08\u4E8E\u662F\u300C\u634F\u5408\u300D\u5728\u624B\u673A\u4E0A\n   \u4E00\u76F4\u662F\u300C\u8FDE\u9876\u680F\u548C\u6E90\u7801\u4E00\u8D77\u653E\u5927\u300D\uFF09\u3002\u6362\u6210 `pan-x pan-y` \u540E\u540C\u4E00\u624B\u52BF\u5B8C\u6574\u4EA4\u56DE\uFF0820 \u6B21 move\u3001\n   0 \u6B21 cancel\uFF09\uFF0C\u5355\u6307\u6EDA\u52A8\u4E0E\u60EF\u6027\u5206\u6BEB\u4E0D\u52A8 \u2014\u2014 \u8FD9\u662F\u552F\u4E00\u65E2\u62FF\u56DE\u634F\u5408\u3001\u53C8\u4E0D\u727A\u7272\u6EDA\u52A8\u624B\u611F\u7684\u7EC4\u5408\u3002\n   `none` \u4E0D\u884C\uFF1A\u5B83\u8FDE\u5355\u6307\u539F\u751F\u6EDA\u52A8\u4E00\u8D77\u5173\u6389\uFF0C\u90A3\u53EA\u9002\u5408\u4E0B\u9762\u76F8\u4F4D\u5C3A\u90A3\u79CD\u4E34\u65F6\u6A21\u5F0F\u3002 */\n.is-touch .svgwrap{touch-action:pan-x pan-y;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}\n/* \u76F8\u4F4D\u6A21\u5F0F\u6253\u5F00\u65F6\uFF08\u90A3\u4E00\u884C\u53EF\u4EE5\u76F4\u63A5\u6293\u7740\u6CE2\u5F62\u6A2A\u5411\u62D6\uFF09\uFF0C\u753B\u5E03\u8FD9\u4E00\u5C42\u4E0D\u53C2\u4E0E\u539F\u751F\u5E73\u79FB\u3002\u539F\u56E0\u662F\u6D4F\u89C8\u5668\u7684\n   \u300C\u6EDA\u52A8\u4EF2\u88C1\u300D\uFF1A`touch-action:manipulation` \u5141\u8BB8\u5E73\u79FB\uFF0C\u4E00\u6B21\u6A2A\u5411\u62D6\u52A8\u4F1A\u88AB\u5224\u6210\u6EDA\u52A8\u5E76\u53D1\u51FA pointercancel \u2014\u2014\n   \u800C\u62D6\u52A8\u4E2D\u6BCF\u5E27\u90FD\u5728\u91CD\u7ED8\uFF0C\u6307\u9488\u6D41\u4E00\u65AD\uFF0C\u62D6\u52A8\u5C31\u53EA\u5269\u524D\u4E24\u5E27\uFF08Android \u5B9E\u6D4B\uFF1A\u6309\u4E0B\u53BB\u52A8\u4E00\u4E0B\uFF0C\u540E\u9762\u600E\u4E48\u62D6\u90FD\u4E0D\u52A8\uFF09\u3002\n   \u53EA\u5728\u76F8\u4F4D\u6A21\u5F0F\u671F\u95F4\u7981\u7528\uFF0C\u5176\u4F59\u65F6\u5019\u7167\u5E38\u6ED1\u52A8\u770B\u56FE\u3002\n   **\u4EE3\u4EF7\u4E0E\u8865\u507F**\uFF1A\u8FD9\u4E00\u6BB5\u624B\u52BF\u671F\u95F4\u539F\u751F\u6EDA\u52A8\u4E0D\u53EF\u7528\uFF0C\u6240\u4EE5\u300C\u62D6\u522B\u5904 = \u79FB\u52A8\u89C6\u56FE\u300D\u7531\u4EA4\u4E92\u5C42\u6309\u6307\u9488\u4F4D\u79FB\u624B\u5199\n   `scrollLeft / scrollTop`\uFF080.14.2\uFF0C\u89C1 interactions.js \u7684 tPan*\uFF09\uFF1B\u6A21\u5F0F\u4E00\u6536\u5C31\u64A4\u6389\u8FD9\u4E2A\u7C7B\uFF0C\u7ACB\u523B\u56DE\u5230\n   \u539F\u751F\u6EDA\u52A8 \u2014\u2014 \u8DDF\u624B\u3001\u56DE\u5F39\u3001\u6EDA\u52A8\u6761\u90FD\u8FD8\u5728\u3002 */\n.svgwrap.is-phase{touch-action:none}\n.is-touch .cellSel{stroke-width:2.4}\n/* \u4E0A\u4E0B\u6587\u6761\uFF1A\u684C\u9762\u4E0E\u89E6\u6478\u7AEF\u90FD\u9489\u5728**\u5E95\u90E8**\uFF08\u684C\u9762\u662F 34px \u65B9\u6309\u94AE\u7684\u6574\u884C\u6761\uFF0C\u89E6\u6478\u7AEF\u6362\u6210 44px \u5927\u6309\u94AE\uFF0C\n   \u89C4\u5219\u5728\u4E0B\u9762 .is-touch \u6BB5\u91CC\uFF09\u3002\u884C / \u5217\u52A8\u4F5C\u73B0\u5728\u53EA\u6709\u8FD9\u4E00\u6761\u901A\u9053 \u2014\u2014 \u753B\u5E03\u4E0A\u7684\u884C\u5C3E\u5DE5\u5177\u7EC4\u4E0E\u5217\u5934\n   \u6309\u94AE\u90FD\u5DF2\u64A4\u6389\uFF0C\u6240\u4EE5\u753B\u5E03\u53F3\u4FA7\u4E5F\u4E0D\u518D\u4E3A\u5B83\u4EEC\u7559\u4F4D\uFF08ACT_W = 0\uFF0C\u89C1 geometry.js\uFF09\u3002 */\n/* \u4E0A\u4E0B\u6587\u6761\uFF1A\u6574\u884C\u3001\u5B9A\u9AD8\u3001**\u7EDD\u4E0D\u6362\u884C**\u3002\u6362\u884C\u4F1A\u628A\u8FD9\u4E00\u6761\u6491\u6210\u4E24\u4E09\u6392 \u2014\u2014 \u505C\u9760\u533A\u867D\u7136\u6052\u9AD8\uFF0C\n   \u4F46\u6309\u94AE\u4F1A\u88AB\u81EA\u5DF1\u7684\u884C\u9AD8\u6324\u6389\uFF0844px \xD7 3 \u6392 > 61px\uFF09\u3002\u653E\u4E0D\u4E0B\u7684\u52A8\u4F5C\u4E0D\u518D\u6A2A\u5411\u6EDA\u52A8\uFF08\u6EDA\u52A8\u5728\u89E6\u6478\u7AEF\n   \u4F1A\u4E0E\u300C\u6ED1\u52A8\u770B\u753B\u5E03\u300D\u6DF7\u6DC6\uFF09\uFF0C\u800C\u662F\u6536\u8FDB\u300C\u22EF\u300D\uFF0C\u4E0E\u5B57\u7B26\u505C\u9760\u6761\u540C\u4E00\u5957\u6EA2\u51FA\u903B\u8F91\u3002 */\n.tbpanel.open{display:flex;flex-wrap:nowrap;gap:4px;padding:6px 8px;height:var(--dock-acts);\n  background:var(--panel);border-top:1px solid var(--line);overflow:hidden}\n/* \u52A8\u4F5C\u6309\u94AE\u7684\u7EDF\u4E00\u5C3A\u5BF8\uFF1A\u683C\u7EA7\uFF08\u505C\u9760\u6761\uFF09/ \u884C\u7EA7 / \u5217\u7EA7\u4E09\u8005\u5FC5\u987B\u4E00\u81F4 \u2014\u2014 \u5B83\u4EEC\u672C\u6765\u5C31\u5171\u7528\u540C\u4E00\u6279\n   24 \u5355\u4F4D\u56FE\u6807\uFF0C\u5C3A\u5BF8/\u5706\u89D2/\u63CF\u8FB9\u5404\u5199\u4E00\u4EFD\u5C31\u4F1A\u50CF\u73B0\u5728\u8FD9\u6837\u300C\u770B\u7740\u90FD\u5DEE\u4E0D\u591A\u3001\u653E\u4E00\u8D77\u5374\u5BF9\u4E0D\u9F50\u300D\u3002\n   \u684C\u9762 32\xD732\uFF08\u505C\u9760\u6761\u5185\u5BB9\u9AD8\u6B63\u597D 32\uFF0C\u4E0D\u6EA2\u51FA\uFF09\u3001\u89E6\u6478 44\xD744\uFF08\u89E6\u5C4F\u6700\u5C0F\u547D\u4E2D\u533A\uFF09\u3002 */\n:is(.tbpanel,.tbmore) button.ctxbtn{width:32px;height:32px;min-width:32px;padding:0;border:1px solid var(--line);\n  border-radius:6px;background:var(--src-bg);color:var(--ink);display:grid;place-items:center;\n  cursor:pointer}\n/* \u56FE\u6807 24px\uFF0832\xD732 \u21D2 \u504F\u79FB 4px\uFF09+ 2px \u63CF\u8FB9 + \u5706\u7AEF\u70B9\u3002\u7AEF\u70B9\u5FC5\u987B\u4E0E\u89E6\u6478\u7AEF\u4E00\u81F4\uFF1A\n   \u684C\u9762\u4E0D\u5199\u5C31\u662F butt/miter\uFF0C\u540C\u4E00\u4E2A\u56FE\u6807\u5728\u4E24\u7AEF\u7684\u62D0\u89D2\u5F62\u72B6\u4F1A\u4E0D\u540C\uFF08\u7528\u6237\u80FD\u770B\u51FA\u300C\u98CE\u683C\u4E0D\u7EDF\u4E00\u300D\uFF09\u3002\n   \u4E3A\u4EC0\u4E48\u5FC5\u987B 24/2\uFF1A\u89C1\u4E0A\u9762\u683C\u7EA7\u52A8\u4F5C\u90A3\u6BB5\u6CE8\u91CA \u2014\u2014 \u540C\u4E00\u6279 24 \u5355\u4F4D\u56FE\u6807\uFF0C\u53EA\u6709 1:1 \u624D\u6E05\u6670\u3002 */\n:is(.tbpanel,.tbmore) button.ctxbtn svg{width:24px;height:24px;fill:none;stroke:currentColor;\n  stroke-width:2;stroke-linecap:round;stroke-linejoin:round}\n:is(.tbpanel,.tbmore) button.ctxbtn:hover{border-color:var(--accent);color:var(--accent)}\n:is(.tbpanel,.tbmore) button.ctxbtn[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-bg);color:var(--accent)}\n.is-touch .tbpanel{display:none}\n.is-touch .tbpanel.open{display:flex;flex-wrap:nowrap;gap:8px;padding:8px;overflow:hidden}\n.is-touch .tbpanel button{min-height:44px;min-width:86px;padding:6px 10px;\n  border:1px solid var(--line);border-radius:10px;background:var(--src-bg);color:var(--ink);\n  font:13px var(--sans);touch-action:manipulation}\n/* \u4E0A\u4E0B\u6587\u56FE\u6807\u6761\uFF1A44\xD744 \u65B9\u5757 + \u5C45\u4E2D\u7EBF\u6761\u56FE\u6807\uFF1B\u56FE\u6807\u753B\u7684\u662F\u300C\u88AB\u64CD\u4F5C\u5BF9\u8C61\u7684\u7F29\u7565\u56FE\u300D */\n.is-touch :is(.tbpanel,.tbmore) button.ctxbtn{min-width:44px;width:44px;height:44px;min-height:44px;padding:0;\n  display:flex;align-items:center;justify-content:center}\n.is-touch :is(.tbpanel,.tbmore) button.ctxbtn svg{width:24px;height:24px;fill:none;stroke:currentColor;\n  stroke-width:2}\n.is-touch :is(.tbpanel,.tbmore) button.ctxbtn:active{background:var(--accent-bg);border-color:var(--accent);color:var(--accent)}\n.is-touch :is(.tbpanel,.tbmore) button.ctxbtn[aria-pressed="true"]{background:var(--accent-bg);border-color:var(--accent);color:var(--accent)}\n.is-touch .tbpanel button:active{background:var(--accent-bg);border-color:var(--accent)}\n.is-touch .toast{display:none;position:fixed;left:50%;bottom:calc(12px + var(--toast-lift,0px));transform:translateX(-50%);z-index:30;\n  max-width:88vw;padding:8px 14px;border-radius:10px;background:var(--ink);color:var(--bg);\n  font:12px/1.5 var(--sans);box-shadow:0 4px 16px rgba(0,0,0,.22);pointer-events:none}\n.is-touch .toast.show{display:block}\n/* \u5B57\u7B26\u505C\u9760\u6761\uFF1A\u9009\u4E2D\u683C\u624D\u51FA\u73B0\uFF0C\u9489\u5728\u5361\u7247\u5E95\u90E8\uFF08\u975E\u5D4C\u5165\u65F6\u8BA9\u5F00 60px \u7684\u64CD\u4F5C\u680F\uFF09\u3002\n   \u4E0E\u65E7\u7248\u300C\u753B\u5728 SVG \u91CC\u518D\u968F\u6EDA\u52A8\u53CD\u5411\u4F4D\u79FB\u300D\u7684\u5B57\u7B26\u6761\u76F8\u6BD4\uFF0C\u5B83\u4E0D\u968F\u753B\u5E03\u6EDA\u52A8\u3001\u4E0D\u76D6\u6CE2\u5F62\uFF0C\n   \u547D\u4E2D\u533A\u7A33\u5B9A\u5728 44px \u2014\u2014 \u624B\u673A\u4E0A\u4E00\u6839\u624B\u6307\u4E0D\u4F1A\u88AB\u5B83\u5E26\u7740\u8DD1\u3002 */\n.chardock{display:none}\n/* \u684C\u9762\uFF1A\u5B57\u7B26\u505C\u9760\u6761\u4E0E\u89E6\u6478\u7AEF\u662F**\u540C\u4E00\u4E2A\u7EC4\u4EF6**\uFF08#chardock / .chipbtn\uFF09\uFF0C\u53EA\u662F\u6446\u653E\u4E0E\u5C3A\u5BF8\n   \u6309\u6307\u9488\u5B9A\u3002\u539F\u5148\u684C\u9762\u5728 SVG \u91CC\u53E6\u753B\u4E00\u6761 23 \u9897\u7684 charChips \u2014\u2014 \u4E24\u5957\u6E32\u67D3\u3001\u4E24\u5957\u5E03\u5C40\u3001\n   \u4E24\u5957\u70B9\u51FB\uFF0C\u8FD8\u6709\u4E00\u6BB5\u300C\u6EDA\u52A8\u65F6\u53CD\u5411\u4F4D\u79FB\u628A chips \u9489\u56DE\u53EF\u89C6\u533A\u300D\u7684\u8865\u507F\u3002\u73B0\u5728\u4E00\u5957\u3002\n   \u684C\u9762\u653E\u5F97\u4E0B 23 \u9897\u5C31\u5168\u5E73\u94FA\uFF08\u4E0D\u6298\u53E0\uFF09\uFF0C\u89E6\u6478\u7AEF 4 \u9897 + \u22EF\uFF0C\u7531 JS \u6309 TOUCH \u51B3\u5B9A\u6570\u91CF\u3002 */\n\n/* \u6EA2\u51FA\u533A\uFF080.25.0\uFF09\uFF1A\u4E24\u6761\u6309\u94AE\u6761\u5404\u81EA\u7684\u300C\u66F4\u591A\u300D\u90FD\u6302\u5728**\u4E0B\u65B9**\uFF0C\u5C55\u5F00\u65F6\u5360\u4F4D\u3002\n   \u65E7\u5B9E\u73B0\u9489\u5728\u6309\u94AE\u6761\u4E0A\u6CBF\u5F80\u4E0A\u5F39\uFF0C\u5361\u7247\u53EA\u6709 200px \u9AD8\u65F6\u4F1A\u628A\u753B\u5E03\u6574\u4E2A\u76D6\u4F4F\uFF08\u6CE2\u5F62\u70B9\u4E0D\u7740\u3001\u62D6\u4E0D\u52A8\uFF09\u3002\n   \u73B0\u5728\u5B83\u53C2\u4E0E\u5E03\u5C40\uFF1A\u5728\u6D41\u5185\u6B63\u5E38\u6491\u5F00 dockzone\uFF0C\u753B\u5E03\u968F\u4E4B\u53D8\u77EE \u2014\u2014 \u6C38\u8FDC\u4E0D\u4F1A\u76D6\u4F4F\u6CE2\u5F62\u3002 */\n.charmore,.tbmore{display:none}\n.charmore.open,.tbmore.open{display:flex;flex-wrap:wrap;align-content:flex-start;gap:4px;\n  padding:6px 8px;max-height:40vh;overflow:auto;\n  background:var(--panel);border-top:1px solid var(--line)}\n.tbmore.open{gap:8px;padding:8px}\n/* \u5927\u89C6\u56FE\uFF08\u6574\u9875\u7F16\u8F91\u5668 / \u5168\u5C4F\uFF09\uFF1A\u6EA2\u51FA\u533A\u6539\u6210**\u5411\u4E0A\u6D6E\u51FA**\uFF0C\u4E0D\u5360\u5E03\u5C40\u3002\n   \u8FD9\u65F6\u753B\u5E03\u5F88\u5927\uFF0C\u76D6\u4F4F\u5E95\u90E8\u4E00\u5C0F\u6761\u8FDC\u597D\u8FC7\u300C\u6574\u5757\u754C\u9762\u91CD\u6392 + \u56FE\u91CD\u65B0\u7F29\u653E\u300D\u2014\u2014\n   \u5C55\u5F00/\u6536\u8D77\u53EA\u89E6\u53D1\u4E00\u6B21\u5408\u6210\uFF0C\u5C3A\u5BF8\u4E00\u4E2A\u50CF\u7D20\u90FD\u4E0D\u53D8\u3002\u5D4C\u5165\u5361\u7247\u4ECD\u8D70\u4E0A\u9762\u7684\u4E0B\u6302\u5360\u4F4D\u3002 */\n.dockzone.more-up .charmore.open,.dockzone.more-up .tbmore.open{position:absolute;left:0;right:0;bottom:100%;\n  z-index:23;max-height:40vh;box-shadow:0 -4px 14px rgba(0,0,0,.12)}\n.chardock.open{display:flex;\n  align-items:center;justify-content:flex-start;gap:4px;padding:4px 8px;height:var(--dock-chars);\n  background:var(--panel);border-top:1px solid var(--line);user-select:none;\n  /* 23 \u9897 \xD7 30px \u2248 690\uFF1A\u7A84\u5361\u7247\uFF08\u5982 520 \u7684 iframe\uFF09\u653E\u4E0D\u4E0B\u65F6\u5FC5\u987B\u6A2A\u5411\u6EDA\u52A8\uFF0C\n     \u4E0D\u80FD\u5C45\u4E2D\u6EA2\u51FA \u2014\u2014 \u5C45\u4E2D\u4F1A\u8BA9\u7B2C\u4E00\u9897\u8DD1\u5230\u8D1F\u5750\u6807\uFF0C\u7528\u6237\u770B\u4E0D\u5230\u4E5F\u70B9\u4E0D\u5230\u3002 */\n  overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain}\n/* \u5B57\u7B26\u6309\u94AE\u7684\u57FA\u7840\u6837\u5F0F\uFF1A\u5B57\u5F62\u6309 30\xD728 \u7684\u5185\u8054\u7F51\u683C\u753B\uFF0C\u89E6\u6478\u7AEF\u518D\u653E\u5927\u5230 48\xD744\u3002 */\n:is(.chardock,.charmore) .chipbtn{position:relative;flex:0 0 30px;width:30px;height:28px;min-width:30px;padding:0;\n  border:1px solid var(--line);border-radius:6px;background:var(--src-bg);color:var(--ink);overflow:hidden}\n:is(.chardock,.charmore) .chipbtn:not(.act) svg{position:absolute;inset:0;width:100%;height:100%;\n  --wave-ink:var(--muted);opacity:.85;pointer-events:none}\n:is(.chardock,.charmore) .chipbtn span{position:relative;font:600 12px var(--mono);\n  text-shadow:0 0 3px var(--panel),0 0 3px var(--panel)}\n/* \u505C\u9760\u6761\u5DE6\u4FA7\u7684\u4E09\u4E2A\u683C\u7EA7\u52A8\u4F5C\uFF08label / node / link\uFF09\uFF1A\u4E0E\u5B57\u7B26\u540C\u5C3A\u5BF8\uFF0C\u9760\u4E00\u6761\u7AD6\u7EBF\u5206\u5F00\u3002\n   \u5B83\u4EEC\u753B\u7684\u662F 24\xD724 \u7F51\u683C\u7684 stroke \u56FE\uFF0C\u4E0D\u662F\u6CE2\u5F62\u9884\u89C8\uFF0C\u6240\u4EE5\u4E0D\u5957\u5B57\u7B26\u90A3\u5957\u914D\u8272\u4E0E\u7F29\u653E\u3002\n\n   \u26A0\uFE0F **\u57FA\u7840\u89C4\u5219\u5FC5\u987B\u628A\u5B83\u6392\u9664\u5728\u5916**\uFF08\u4E0A\u9762\u90A3\u6761 `:not(.act)`\uFF09\u3002\u8FD9\u4E2A\u4F4D\u7F6E\u7684\u5751\u8E29\u8FC7\u4E24\u6B21\uFF1A\n   \xB7 0.18.0\uFF1A`.chipbtn svg{inset:0}` \u4E0E\u8FD9\u91CC\u540C\u7279\u5F02\u6027\u3001\u5199\u5728\u540E\u9762\uFF0C\u628A `left/top:50%` \u91CD\u7F6E\u6210 auto\uFF0C\n     \u56FE\u6807\u88AB translate \u63A8\u51FA\u6309\u94AE\u518D\u88AB `overflow:hidden` \u88C1\u6389\uFF08\u5B9E\u6D4B\u6309\u94AE 30\xD728\u3001svg 17\xD717\u3001dx=-7.5\uFF09\uFF1B\n   \xB7 0.19.3\uFF1A\u540C\u4E0A\u4F46\u53D1\u751F\u5728\u89E6\u6478\u7AEF \u2014\u2014 `.is-touch` \u90A3\u6761\u53C8\u628A `inset:0` \u76D6\u56DE\u6765\uFF0C\u504F\u79FB -11,-11\uFF0C\n     44px \u6309\u94AE\u91CC\u53EA\u5269\u5DE6\u4E0A\u89D2\u4E00\u6761\u7F1D\u3002\n   \u4E24\u6B21\u7684\u6559\u8BAD\u662F\u540C\u4E00\u6761\uFF1A**\u522B\u9760\u58F0\u660E\u987A\u5E8F\u6216 `!important` \u62A2\uFF0C\u76F4\u63A5\u8BA9\u57FA\u7840\u89C4\u5219\u4E0D\u5339\u914D\u5B83\u3002**\n\n   \u26A0\uFE0F \u5C3A\u5BF8\u4E0E\u63CF\u8FB9\u4E5F\u662F\u529F\u80FD\u6027\u7684\uFF1A24 \u5355\u4F4D\u7684\u56FE\u6807\u5FC5\u987B **24px 1:1 \u6E32\u67D3 + 2px \u63CF\u8FB9**\u3002\u7F29\u6210 17px \u5C31\u662F\n   0.708 \u500D\uFF0C1px \u63CF\u8FB9\u53D8\u6210\u4E9A\u50CF\u7D20\u3001\u4E2D\u5FC3\u8FD8\u843D\u5728\u534A\u50CF\u7D20\u4E0A \u2014\u2014 \u6297\u952F\u9F7F\u628A\u7EBF\u644A\u5230\u4E24\u4E2A\u50CF\u7D20\uFF0C1 \u500D\u5C4F\u4E0A\n   \u659C\u8FB9\u65AD\u53E3\u3001\u5706\u73AF\u53D1\u7070\uFF080.19.3 \u7528\u6237\u5B9E\u6D4B\u300C\u5934\u4E24\u4E2A\u6309\u94AE\u56FE\u6807\u5F02\u5E38\u300D\uFF1B2 \u500D\u5C4F\u548C\u7F29\u7565\u56FE\u4E0A\u90FD\u770B\u4E0D\u51FA\u6765\uFF09\u3002 */\n/* \u684C\u9762\u5C3A\u5BF8\u4E0E\u884C/\u5217\u52A8\u4F5C\u6309\u94AE\u5BF9\u9F50\uFF0832\xD732\uFF09\uFF1A\u4E09\u8005\u5171\u7528\u540C\u4E00\u6279 24 \u5355\u4F4D\u56FE\u6807\uFF0C\u6309\u94AE\u4E5F\u5FC5\u987B\u540C\u5927\u3002\n   \u505C\u9760\u6761\u5185\u5BB9\u9AD8\u6070\u597D 32\uFF08--dock-chars 40 \u2212 \u4E0A\u4E0B padding 4\xD72\uFF09\uFF0C\u4E0D\u4F1A\u6EA2\u51FA\u3002\n   \u7AEF\u70B9\u540C\u6837\u7528 round \u2014\u2014 \u4E0E\u4E0A\u4E0B\u6587\u6761\u3001\u89E6\u6478\u7AEF\u4FDD\u6301\u540C\u4E00\u5957\u753B\u7B14\u3002 */\n:is(.chardock,.charmore) .chipbtn.act{flex:0 0 32px;width:32px;min-width:32px;height:32px}\n:is(.chardock,.charmore) .chipbtn.act svg{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);\n  width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:2;\n  stroke-linecap:round;stroke-linejoin:round}\n/* \u89E6\u6478\u7AEF\u8FD9\u4E09\u4E2A\u6309\u94AE\u6536\u5230 44\uFF08\u4E0D\u8DDF\u5B57\u7B26\u7684 48\uFF09\uFF1A320px \u5361\u7247\u91CC\u7701\u4E0B\u7684 12px \u6B63\u597D\u80FD\u591A\u6446\u4E00\u9897\u5B57\u7B26\u3002\n   \u56FE\u6807\u5C3A\u5BF8\u6CBF\u7528\u4E0A\u9762\u7684 24\uFF0C\u4E0D\u53E6\u8BBE \u2014\u2014 \u591A\u51FA\u6765\u7684\u7A7A\u95F4\u7559\u7ED9\u547D\u4E2D\u533A\u3002 */\n.is-touch :is(.chardock,.charmore) .chipbtn.act{flex:0 0 44px;width:44px;min-width:44px;height:44px}\n.docksep{flex:0 0 1px;align-self:stretch;margin:6px 6px;background:var(--line)}\n:is(.chardock,.charmore) .chipbtn.on{border-color:var(--accent);background:var(--accent-bg)}\n:is(.chardock,.charmore) .chipbtn.on svg{--wave-ink:var(--accent);opacity:1}\n:is(.chardock,.charmore) .chipbtn.on span{color:var(--accent)}\n:is(.chardock,.charmore) .chipbtn:hover{border-color:var(--accent)}\n/* \u300C\u22EF\u300D\uFF1A\u4E0E\u5B57\u7B26\u540C\u5C3A\u5BF8\uFF0C\u53EA\u663E\u793A\u4E09\u4E2A\u70B9\uFF1B\u5C55\u5F00\u65F6\u70B9\u4EAE\u3002 */\n:is(.chardock,.charmore) .chipbtn.more span,:is(.tbpanel,.tbmore) button.ctxbtn.more span{font:600 15px var(--sans);color:var(--muted);line-height:1}\n:is(.chardock,.charmore) .chipbtn.more.on,:is(.tbpanel,.tbmore) button.ctxbtn.more.on{border-color:var(--accent);background:var(--accent-bg);color:var(--accent)}\n.is-touch .chardock.open{display:flex;\n  align-items:center;gap:6px;padding:6px 8px;\n  background:var(--panel);border-top:1px solid var(--line);\n  overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;\n  touch-action:pan-x;user-select:none}\n/* \u89E6\u6478\u7AEF\u53EA\u8986\u76D6\u300C\u4E0E\u684C\u9762\u4E0D\u540C\u300D\u7684\u4E09\u9879\uFF1A\u5C3A\u5BF8\uFF0848\xD744 \u547D\u4E2D\u533A\uFF09\u3001\u5706\u89D2 10\u3001\u5B57\u53F7 15\u3002\n   \u5B9A\u4F4D\u3001\u914D\u8272\u4E0E\u9009\u4E2D\u6001\u7531\u4E0A\u9762\u7684\u57FA\u7840\u89C4\u5219\u7EDF\u4E00\u7ED9\u51FA\uFF0C\u4E0D\u518D\u91CD\u590D\u4E00\u904D\u3002 */\n.is-touch :is(.chardock,.charmore) .chipbtn{position:relative;flex:0 0 48px;\n  width:48px;height:44px;min-width:48px;padding:0;border:1px solid var(--line);border-radius:10px;\n  background:var(--src-bg);color:var(--ink);touch-action:manipulation;overflow:hidden}\n.is-touch :is(.chardock,.charmore) .chipbtn span{position:relative;\n  font:600 15px var(--mono);text-shadow:0 0 3px var(--panel),0 0 3px var(--panel)}\n.is-touch :is(.chardock,.charmore) .chipbtn:active{background:var(--accent-bg);border-color:var(--accent)}\n/* \u53F3\u8FB9\u7F18\u6DE1\u51FA\uFF1A\u63D0\u793A\u8FD9\u6392\u8FD8\u80FD\u6A2A\u5411\u6ED1\uFF0823 \u4E2A\u5B57\u7B26\u4E00\u6392\u653E\u4E0D\u4E0B\uFF09 */\n.is-touch .chardock.open::after{content:"";position:sticky;right:0;flex:0 0 18px;\n  align-self:stretch;margin-left:-18px;\n  background:linear-gradient(to right,rgba(0,0,0,0),var(--panel));pointer-events:none}\n/* \u9996\u5C4F\u624B\u52BF\u5F15\u5BFC\uFF1A\u6307\u5C16\u4ECE\u53F3\u4E0B\u6ED1\u5230\u683C\u5B50 \u2192 \u70B9\u4E00\u4E0B + \u8F7B\u6D9F\u6F2A \u2192 \u518D\u70B9\u4E00\u4E0B\uFF08\u53CC\u6572\u8FDB\u5C31\u5730\u7F16\u8F91\uFF09\u3002\n   \u753B\u5728\u9875\u9762\u56FA\u5B9A\u5C42\u4E0A\uFF0C\u64AD\u5B8C\u7531 JS \u79FB\u9664\uFF1B\u4E0D\u5360\u753B\u5E03\u3001\u4E0D\u8FDB\u6CE2\u5F62\u5C42\u3001\u4E0D\u5199\u4EFB\u4F55\u6587\u5B57\u3002 */\n.gesture{position:fixed;z-index:35;width:0;height:0;pointer-events:none}\n.gesture i{position:absolute;display:block;border-radius:50%}\n.gesture .finger{width:22px;height:22px;margin:-11px 0 0 -11px;background:var(--accent);\n  border:2px solid var(--bg);box-shadow:0 2px 8px rgba(0,0,0,.3);animation:gFinger 2.2s ease-out forwards}\n.gesture .ring{width:40px;height:40px;margin:-20px 0 0 -20px;border:2.5px solid var(--accent);opacity:0}\n.gesture .r1{animation:gRing .7s ease-out .55s forwards}\n.gesture .r2{animation:gRing .7s ease-out 1s forwards}\n@keyframes gFinger{\n  0%{transform:translate(24px,32px) scale(1);opacity:0}\n  8%{transform:translate(24px,32px) scale(1);opacity:.95}\n  22%{transform:translate(0,0) scale(1)}\n  30%{transform:translate(0,0) scale(.78)}\n  38%{transform:translate(0,0) scale(1)}\n  48%{transform:translate(0,0) scale(.78)}\n  56%{transform:translate(0,0) scale(1)}\n  70%{transform:translate(0,0) scale(1);opacity:.95}\n  100%{transform:translate(0,0) scale(1);opacity:0}\n}\n@keyframes gRing{\n  0%{transform:scale(.35);opacity:1}\n  100%{transform:scale(1.7);opacity:0}\n}\n.is-touch .errdot{width:12px;height:12px;top:12px;right:12px}\n.is-touch .inline-edit{font-size:16px;height:100%}\n\n/* \u5C0A\u91CD\u7CFB\u7EDF\u7684\u300C\u51CF\u5C11\u52A8\u6001\u6548\u679C\u300D\u504F\u597D\u3002\n   \u8FD9\u91CC\u53EA\u5173\u6389**\u81EA\u52A8\u64AD\u653E**\u7684\u88C5\u9970\u52A8\u6548\uFF0C\u4E0D\u78B0\u4EA4\u4E92\u53CD\u9988\uFF1A\n   \xB7 \u9996\u5C4F\u624B\u52BF\u5F15\u5BFC\uFF08gFinger 2.2s + \u4E24\u5708\u6269\u6563\uFF09\u662F\u6253\u5F00\u9875\u9762\u81EA\u5DF1\u5C31\u5F00\u59CB\u64AD\u7684\uFF0C\n     \u5BF9\u524D\u5EAD\u654F\u611F\u7684\u4EBA\u4E0D\u53CB\u597D\uFF08WCAG 2.2.2 \u8981\u6C42\u8FD9\u7C7B\u52A8\u6548\u53EF\u505C\uFF09\u2014\u2014 \u76F4\u63A5\u4E0D\u64AD\u3002\n     \u5B83\u53EA\u662F\u63D0\u793A\u300C\u70B9\u683C\u5B50\u53EF\u4EE5\u7F16\u8F91\u300D\uFF0C\u8282\u70B9\u5DF2\u88AB JS \u5728 2.4s \u540E\u81EA\u884C\u79FB\u9664\uFF0C\u9690\u85CF\u4E0D\u5F71\u54CD\u4EFB\u4F55\u903B\u8F91\u3002\n   \xB7 \u9519\u8BEF\u7EA2\u70B9\u7684\u8109\u51B2\u662F\u7EAF\u88C5\u9970\uFF0C\u7EA2\u70B9\u672C\u8EAB\u5E38\u4EAE\u5C31\u591F\u4F20\u8FBE\u300C\u6709\u9519\u300D\u3002 */\n@media (prefers-reduced-motion:reduce){\n  .gesture{display:none}\n  .errdot.pulse{animation:none}\n}\n\n/* ---------------------------------------------------------------------------\n   \u7AD9\u70B9\u81EA\u7528\u53EA\u8BFB\u9884\u89C8\uFF08\u9996\u9875 logo \u4F4D\u3001\u6559\u7A0B\u9875\u793A\u4F8B\uFF0C\u7531 src/demo.js \u6E32\u67D3\uFF09\n   \u6309\u5BB9\u5668\u5BBD\u7B49\u6BD4\u7F29\u653E\u3001\u4E0D\u51FA\u6EDA\u52A8\u6761 \u2014\u2014 \u4E0E\u628A\u56FE\u5F53\u56FE\u7247\u770B\u7684\u8BC9\u6C42\u4E00\u81F4\u3002\n   --------------------------------------------------------------------------- */\n.tb-preview{position:relative;overflow:hidden}\n.tb-preview .svgwrap{overflow:hidden}\n.tb-preview .svgwrap svg{display:block;width:100%;height:auto;margin:0}\n\n/* \u9884\u89C8\u5361\u53F3\u4FA7\u4E0A\u89D2\u7684\u94C5\u7B14\uFF1A\u8DF3\u7F16\u8F91\u5668\u5E76\u5E26\u4E0A\u8FD9\u5F20\u56FE\u7684\u6E90\u7801\uFF08\u9884\u89C8\u672C\u8EAB\u4ECD\u53EA\u8BFB\uFF09\u3002\n   \u4E0E\u7F16\u8F91\u5668\u540C\u4E00\u5957\u914D\u8272\uFF0C\u660E\u6697\u4E3B\u9898\u81EA\u52A8\u8DDF\u968F\u3002 */\n.tb-edit{position:absolute;right:8px;top:8px;z-index:3;box-sizing:border-box;\n  width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;\n  border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--muted);\n  text-decoration:none;opacity:.9;transition:opacity .12s,color .12s,border-color .12s,background .12s}\n.tb-edit:hover,.tb-edit:focus-visible{opacity:1;color:var(--accent);border-color:var(--accent);background:var(--accent-bg);outline:none}\n.tb-edit svg{display:block;width:16px;height:16px}\n\n/* Plugin-only styles: the "inside a note" shapes the main stylesheet has no idea about.\n   The main stylesheet is scoped into the shadow root at build time (:root \u2192 :host,\n   body \u2192 .tb-root); these rules land there too, so nothing here can touch Obsidian\'s UI. */\n\n/* --- Shell: isolate the host and give the code block a stable box ----------------------- */\n.tb-shell {\n  position: relative;\n  display: block;\n  width: 100%;\n  border-radius: 6px;\n  overflow: hidden;\n  background: var(--background-primary, #fff);\n}\n.tb-root {\n  position: relative;\n  height: auto;\n  min-height: 0;\n}\n\n/* --- Preview: diagram only, no editing chrome ----------------------------------------- */\n.tb-root:not(.is-editing) .topbar,\n.tb-root:not(.is-editing) .dockzone,\n.tb-root:not(.is-editing) .pane.src {\n  display: none;\n}\n.tb-root:not(.is-editing) .app {\n  display: block;\n  height: auto;\n}\n.tb-root:not(.is-editing) .pane.diagram {\n  display: block;\n  height: auto;\n}\n.tb-root:not(.is-editing) .svgwrap {\n  height: auto;\n  overflow: visible;\n}\n.tb-root:not(.is-editing) .svgwrap svg {\n  display: block;\n  width: 100%;\n  height: auto;\n}\n\n/* --- Editing: a fixed viewport the editor can lay itself out in ------------------------ */\n.tb-root.is-editing {\n  height: min(72vh, 560px);\n  min-height: 380px;\n}\n.tb-root.is-editing .app {\n  display: grid;\n  flex: 1 1 auto;\n  min-height: 0;\n}\n\n/* --- Pencil / checkmark: same spot in both states ------------------------------------- */\n.tb-toggle {\n  position: absolute;\n  top: 6px;\n  right: 6px;\n  z-index: 40;\n  width: 30px;\n  height: 30px;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  padding: 0;\n  border: 1px solid var(--line);\n  border-radius: 6px;\n  background: var(--panel);\n  color: var(--muted);\n  cursor: pointer;\n  opacity: 0;\n  transition: opacity .12s ease;\n}\n.tb-shell:hover .tb-toggle,\n.tb-root.is-editing .tb-toggle,\n.tb-toggle:focus-visible {\n  opacity: 1;\n}\n.tb-toggle:hover {\n  color: var(--ink);\n  background: var(--hover);\n}\n.tb-toggle svg {\n  width: 16px;\n  height: 16px;\n  fill: none;\n  stroke: currentColor;\n  stroke-width: 1.8;\n  stroke-linecap: round;\n  stroke-linejoin: round;\n}\n.tb-toggle .ico-done { display: none; }\n.tb-root.is-editing .tb-toggle .ico-done { display: block; }\n.tb-root.is-editing .tb-toggle .ico-edit { display: none; }\n\n/* --- Parse failure: one visible line, source untouched --------------------------------- */\n.tb-error {\n  padding: 8px 10px;\n  font: 12px/1.5 var(--sans);\n  color: var(--err);\n  background: var(--err-bg);\n  border-top: 1px solid var(--line);\n}\n';
+var tb_styles_default = '/* \u5171\u4EAB\u6837\u5F0F\uFF1A\u4E3B\u9875\u9762\u4E0A\u4E0B\u5206\u533A + \u6CE2\u5F62\u56FE\u5143\u3002 */\n:host{--bg:#fff;--panel:#fff;--src-bg:#f7f7f7;--hover:rgba(0,0,0,.05);--ink:#1f2328;--muted:#6b7078;--line:rgba(0,0,0,.10);--line2:rgba(0,0,0,.30);--accent:#185fa5;--accent-bg:#e9f2fc;--ok:#1d9e75;--ok-bg:#e1f5ee;--warn:#ba7517;--warn-bg:#faeeda;--err:#c0392b;--err-bg:#fcebeb;--bus:#ba7517;--bus-bg:#faeeda;--bus2:#fff;--bus3:#ffffb4;--bus4:#ffe0b9;--bus5:#b9e0ff;--bus6:#ccfdfe;--bus7:#cdfdc5;--bus8:#f0c1fb;--bus9:#f5c2c0;--wave-ink:var(--ink);--mono:ui-monospace,SFMono-Regular,Consolas,monospace;--sans:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif}\n@media (prefers-color-scheme:dark){:host{--bg:#191a1c;--panel:#222427;--src-bg:#202225;--hover:rgba(255,255,255,.07);--ink:#e9e9e6;--muted:#9b9b95;--line:rgba(255,255,255,.14);--line2:rgba(255,255,255,.3);--accent:#6cb0ee;--accent-bg:#14304a;--ok:#5dcaa5;--ok-bg:#12382b;--warn:#ef9f27;--warn-bg:#3a2a10;--err:#f09595;--err-bg:#3b1e1e;--bus:#ef9f27;--bus-bg:#3a2a10;--bus2:#3a3b3e;--bus3:#4a4a24;--bus4:#4a3520;--bus5:#1d3a55;--bus6:#1e4547;--bus7:#22452a;--bus8:#402748;--bus9:#4a2a28}}\n*{box-sizing:border-box}\n:host{display:block}\n.tb-root{margin:0;background:var(--bg);color:var(--ink);font:13px/1.6 var(--sans);overflow:hidden;display:flex;flex-direction:column;height:100%}\n/* \u5206\u5C4F\uFF1A\u5DE6\u53F3\uFF08\u5DE6\u4EE3\u7801 / \u53F3\u65F6\u5E8F\u56FE\uFF09\u4E3A\u9ED8\u8BA4\uFF1B\u9876\u680F\u7684 \u21C4 \u53EF\u5207\u6210\u4E0A\u4E0B\uFF0C\u9009\u62E9\u4F1A\u8BB0\u4F4F\u3002\n   \u6CA1\u6709\u663E\u5F0F\u9009\u62E9\u65F6\u6309\u5BBD\u5EA6\u81EA\u9002\u5E94\uFF08\u7A84\u7A97\u53E3\u9000\u56DE\u4E0A\u4E0B\uFF0C\u89C1\u4E0B\u9762\u7684\u5A92\u4F53\u67E5\u8BE2\uFF09\u3002\n\n   **\u4E09\u8F68\u7F51\u683C**\uFF080.27.0\uFF09\uFF1A`\u6BD4\u4F8B\u8F68 + \u5206\u9694\u6761 + 1fr`\u3002\u4E2D\u95F4\u90A3\u6761\u5206\u9694\u7EBF\u662F**\u53EF\u62D6\u52A8\u7684** \u2014\u2014\n   \u9ED8\u8BA4\u4E24\u533A\u5404\u5360 50%\uFF0C\u7528\u6237\u6309\u5F53\u4E0B\u7684\u4EFB\u52A1\u62D6\uFF08\u8BFB\u6E90\u7801\u8981\u5BBD\u4EE3\u7801\u533A\u3001\u6539\u6CE2\u5F62\u8981\u5BBD\u753B\u5E03\uFF09\uFF0C\n   \u505C\u624B\u5373\u8BB0\u4F4F\uFF08`--split` \u7531 splitter.js \u5199\u5230 .app \u7684\u884C\u5185\u6837\u5F0F\u4E0A\uFF0C\u5E76\u6301\u4E45\u5316\u5230 localStorage\uFF09\u3002\n   \u5206\u9694\u6761\u5360\u771F\u5B9E\u8F68\u9053\uFF08\u4E0D\u662F\u53E0\u5728 pane \u4E0A\u7684\u6D6E\u5C42\uFF09\uFF1A\u5B83\u4E0D\u5403\u753B\u5E03\u5BBD\u5EA6\uFF0C\u4E5F\u4E0D\u4F1A\u88AB `overflow:hidden` \u88C1\u6389\u3002 */\n:host{--split-w:7px}          /* \u5206\u9694\u6761\u547D\u4E2D\u533A\u5BBD\u5EA6\uFF1B\u89E6\u6478\u7AEF\u52A0\u5BBD\uFF08\u89C1\u4E0B\uFF09 */\n.is-touch{--split-w:11px}\n.app{display:grid;--split:50%;\n  grid-template-columns:minmax(0,var(--split)) var(--split-w) minmax(0,1fr);\n  grid-template-rows:minmax(0,1fr);\n  flex:1 1 auto;min-height:0}\n.app[data-layout="rows"]{grid-template-columns:minmax(0,1fr);\n  grid-template-rows:minmax(0,var(--split)) var(--split-w) minmax(0,1fr)}\n.pane{position:relative;min-width:0;min-height:0;overflow:hidden}\n.pane.src{background:var(--src-bg)}\n/* \u5206\u9694\u6761\uFF1A7px \u547D\u4E2D\u533A\uFF0C\u89C6\u89C9\u4E0A\u53EA\u6709\u4E2D\u95F4 1px \u7684\u7EBF\uFF08\u7528\u80CC\u666F\u6E10\u53D8\u753B\uFF0C\u7701\u6389\u4E00\u5C42\u4F2A\u5143\u7D20\uFF09\u3002\n   \u60AC\u505C / \u62D6\u52A8 / \u952E\u76D8\u805A\u7126\u65F6\u7EBF\u53D8\u7C97\u3001\u53D8\u5F3A\u8C03\u8272 \u2014\u2014 \u677E\u624B\u4E0D\u53D8\uFF0C\u56E0\u4E3A\u300C\u80FD\u4E0D\u80FD\u62D6\u300D\u8981\u4E00\u770B\u5C31\u77E5\u9053\u3002\n   \u89E6\u6478\u7AEF\u52A0\u5BBD\u5230 11px\uFF1A\u624B\u6307\u6309 7px \u592A\u7A84\uFF0C\u5BB9\u6613\u70B9\u4E0A\u65C1\u8FB9\u7684\u6E90\u7801\u3002 */\n.splitter{position:relative;z-index:15;touch-action:none;cursor:col-resize;\n  background:linear-gradient(var(--line),var(--line)) center/1px 100% no-repeat}\n.splitter[aria-orientation="horizontal"]{cursor:row-resize;\n  background:linear-gradient(var(--line),var(--line)) center/100% 1px no-repeat}\n.splitter:hover,.splitter:focus-visible,.splitter.drag{\n  background-image:linear-gradient(var(--accent),var(--accent));background-size:3px 100%}\n.splitter[aria-orientation="horizontal"]:hover,.splitter[aria-orientation="horizontal"]:focus-visible,\n.splitter[aria-orientation="horizontal"].drag{background-size:100% 3px}\n.splitter:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}\n/* \u6293\u624B\uFF1A\u6B63\u4E2D\u4E09\u4E2A\u5C0F\u70B9\u3002\u53EA\u9760\u4E00\u6761 1px \u7684\u7EBF\uFF0C\u7528\u6237\u6839\u672C\u770B\u4E0D\u51FA\u300C\u8FD9\u6761\u80FD\u62D6\u300D\u2014\u2014\n   \u52A0\u70B9\u9635\u6BD4\u628A\u7EBF\u67D3\u6DF1\u66F4\u6709\u6548\uFF1A\u7EBF\u8FD8\u662F\u8981\u6DE1\uFF08\u5B83\u540C\u65F6\u662F\u9ED1\u767D\u4E24\u5957\u4E3B\u9898\u4E0B\u7684\u5206\u9694\u7EBF\uFF09\uFF0C\n   \u70B9\u9635\u53EA\u5728\u4E2D\u95F4\u4E00\u5C0F\u6BB5\u51FA\u73B0\uFF0C\u50CF\u65E7\u5F0F\u7A97\u6846\u4E0A\u7684\u62D6\u52A8\u7EB9\u3002\u60AC\u505C / \u62D6\u52A8\u65F6\u9690\u53BB\uFF08\u90A3\u65F6\u7EBF\u5DF2\u53D8\u6210\u5F3A\u8C03\u8272\uFF09\u3002 */\n.splitter::after{content:"";position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);\n  width:3px;height:22px;border-radius:2px;\n  background:radial-gradient(circle,var(--muted) 1px,transparent 1.3px) center/3px 8px repeat-y;\n  opacity:.5;pointer-events:none}\n.splitter[aria-orientation="horizontal"]::after{width:22px;height:3px;\n  background:radial-gradient(circle,var(--muted) 1px,transparent 1.3px) center/8px 3px repeat-x}\n.splitter:hover::after,.splitter:focus-visible::after,.splitter.drag::after{opacity:0}\n/* \u62D6\u52A8\u671F\u95F4\uFF1A\u6574\u9875\u4E0D\u9009\u4E2D\u6587\u5B57\u3001\u5149\u6807\u4FDD\u6301 resize\uFF08\u5426\u5219\u63A0\u8FC7\u6E90\u7801\u65F6\u624B\u578B\u4F1A\u53D8\u56DE I \u5F62\uFF09 */\nhtml.is-resizing,html.is-resizing *{user-select:none!important;cursor:col-resize!important}\nhtml.is-resizing.is-resizing-rows,html.is-resizing.is-resizing-rows *{cursor:row-resize!important}\n/* \u684C\u9762\u5BBD\u5C4F = \u5DE6\u4EE3\u7801 / \u53F3\u65F6\u5E8F\u56FE\uFF082026-11-13\uFF09\u3002\u7A84\u7A97\u53E3\uFF08\u9F20\u6807\u4F46\u6CA1\u6A2A\u5411\u7A7A\u95F4\uFF09\u56DE\u9000\u6210\u4E0A\u4E0B\u5206\u533A\uFF0C\n   \u89E6\u6478\u7AEF\u53E6\u6709\u81EA\u5DF1\u7684\u89C4\u5219\uFF08\u89C1 .is-touch \u6BB5\uFF09\u3002 */\n@media (max-width: 860px){\n  .app{grid-template-columns:minmax(0,1fr);\n    grid-template-rows:minmax(0,var(--split)) var(--split-w) minmax(0,1fr)}\n}\n.gutter{position:absolute;left:0;top:0;bottom:0;width:40px;padding:12px 9px 12px 0;text-align:right;font:12px/1.65 var(--mono);color:var(--muted);border-right:1px solid var(--line);overflow:hidden;white-space:pre;user-select:none;pointer-events:none;\n  /* \u884C\u53F7\u69FD\u5FC5\u987B**\u76D6\u4F4F**\u6A2A\u5411\u6EDA\u52A8\u540E\u94BB\u5230\u5B83\u4E0B\u9762\u7684\u6E90\u7801\uFF1Atextarea \u662F\u540E\u51FA\u73B0\u7684\u7EDD\u5BF9\u5B9A\u4F4D\u5143\u7D20\uFF0C\n     \u4E0D\u7ED9\u8FD9\u4E00\u5C42\u52A0\u4E0D\u900F\u660E\u5E95\u8272\u548C\u5C42\u5E8F\uFF0C\u957F\u884C\u5F80\u5DE6\u6EDA\u65F6\u5B57\u7B26\u4F1A\u538B\u5728\u884C\u53F7\u4E0A\uFF08\u4E24\u4E32\u6570\u5B57 / \u5B57\u6BCD\u53E0\u5728\u4E00\u8D77\uFF09\u3002\n     \u5E95\u8272\u4E0E .pane.src \u4E00\u81F4\uFF0C\u89C6\u89C9\u4E0A\u4ECD\u662F\u300C\u4E00\u6761\u8BA9\u51FA\u6765\u7684\u8FB9\u300D\u3002 */\n  background:var(--src-bg);z-index:2}\n/* \u53EA\u4F5C\u7528\u4E8E\u6E90\u7801\u6846\uFF1A.shareCode \u7B49\u5176\u5B83 textarea \u4E0D\u80FD\u88AB\u8FD9\u6761\u7EDD\u5BF9\u5B9A\u4F4D\u89C4\u5219\u8BEF\u4F24 */\n.pane.src textarea{position:absolute;inset:0;width:100%;height:100%;resize:none;border:0;outline:none;background:transparent;color:var(--ink);padding:12px 10px 12px 50px;font:12px/1.65 var(--mono);tab-size:2;white-space:pre;overflow:auto}\n/* \u6CE2\u5F62\u533A = \u753B\u5E03 + \u5E95\u90E8\u4E24\u6761\uFF08\u52A8\u4F5C / \u5B57\u7B26\uFF09\u3002\u4E24\u6761\u662F**\u771F\u5B9E\u7684 flex \u5B50\u9879**\uFF0C\n   \u6240\u4EE5\u4E0D\u518D\u76D6\u5728\u6CE2\u5F62\u4E0A\u3001\u4E5F\u4E0D\u9700\u8981\u753B\u5E03\u4E3A\u5B83\u4EEC\u9884\u7559\u9AD8\u5EA6\u3002 */\n.pane.diagram{position:relative;display:flex;flex-direction:column;min-height:0}\n.svgwrap{position:relative;flex:1 1 auto;min-height:0;overflow:auto;background:var(--bg);outline:none}\n/* \u505C\u9760\u533A\uFF1A**\u4E00\u884C\u7684\u5E95\u566A + \u6309\u6392\u6570\u957F\u9AD8**\uFF080.26.0\uFF09\u3002\n   \u4E24\u6761\u5B50\u6761\u4E92\u65A5\uFF08\u9009\u4E2D\u683C \u2192 \u5B57\u7B26\u6761\uFF1B\u9009\u4E2D\u884C / \u5217 \u2192 \u4E0A\u4E0B\u6587\u6761\uFF09\uFF0C\u6240\u4EE5\u5E38\u6001\u53EA\u5360\u4E00\u884C\uFF1B\n   `min-height` \u4FDD\u4F4F\u8FD9\u4E00\u884C\uFF0C\u5207\u9009\u4E2D\u5BF9\u8C61\u65F6\u7248\u9762\u4E0D\u6296\u3002\n   \u6309\u94AE\u4E0D\u518D\u6298\u53E0\uFF08\u6CA1\u6709\u300C\u22EF\u300D\uFF09\uFF1A\u5BBD\u5EA6\u4E0D\u591F\u5C31\u6362\u884C\uFF0C`.dockzone` \u81EA\u7136\u957F\u9AD8\uFF0C\u753B\u5E03\u662F\u5B83\u7684 flex\n   \u5144\u5F1F\u3001\u7B49\u91CF\u8BA9\u4F4D \u2014\u2014 \u4E8E\u662F\u6309\u94AE\u6C38\u8FDC\u53EF\u89C1\uFF0C\u4E5F\u6C38\u8FDC\u4E0D\u76D6\u4F4F\u6CE2\u5F62\u3002 */\n.dockzone{position:relative;flex:0 0 auto;display:flex;flex-direction:column;justify-content:flex-end;z-index:20;\n  min-height:calc(var(--dock-row) + env(safe-area-inset-bottom,0px));\n  padding-bottom:env(safe-area-inset-bottom,0px)}\n/* \u56DB\u6761\u5B50\u6761\u5404\u81EA\u5B9A\u9AD8\u3001\u7EDD\u4E0D\u538B\u7F29\uFF1Adockzone \u7684\u9AD8\u5EA6\u662F\u6309\u5B83\u4EEC\u7684\u5B9E\u6D4B\u503C\u52A0\u51FA\u6765\u7684\uFF0C\n   \u4E00\u65E6\u5141\u8BB8 flex \u6536\u7F29\uFF0C\u6309\u94AE\u4F1A\u88AB\u538B\u6389\u51E0\u50CF\u7D20\uFF08\u5B9E\u6D4B panel 57 vs \u9700\u8981 60\uFF0C\u5E95\u8FB9\u76F4\u63A5\u88C1\u6389\uFF09\u3002 */\n.dockzone > *{flex:0 0 auto}\n.is-readonly .dockzone{min-height:0}\n/* \u5D4C\u5165\u5361\u7247\uFF1A\u6CA1\u6709\u6309\u94AE\u65F6\u4E0D\u5360\u4F4D\uFF080\uFF09\uFF0C\u6709\u6309\u94AE\u65F6\u53EA\u5360\u4E00\u884C\uFF1B\u4E24\u6761\u5B50\u6761\u540C\u9AD8 \u21D2 \u9009\u683C\u2194\u9009\u884C\u4E0D\u8DF3\u3002 */\n/* \u79BB\u5C4F\u6587\u672C\u6D4B\u91CF\u5BB9\u5668\uFF1A\u53EA\u7ED9 shapes.js \u91CF\u884C\u540D\u5BBD\u5EA6\u7528\uFF0C\u6C38\u8FDC\u4E0D\u53EF\u89C1\u3001\u4E0D\u5403\u4E8B\u4EF6 */\n.measure{position:absolute;left:-9999px;top:-9999px;width:0;height:0;overflow:hidden;pointer-events:none;visibility:hidden;font-family:var(--sans)}\n/* \u952E\u76D8\u7528\u6237\u7528 Tab / F6 \u8FDB\u5165\u753B\u5E03\u65F6\u7ED9\u51FA\u53EF\u89C1\u7126\u70B9\uFF1B\u9F20\u6807\u70B9\u51FB\u4E0D\u663E\u793A */\n.svgwrap:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}\nsvg{display:block;font-family:var(--sans)}\n.errdot{position:absolute;right:10px;top:10px;width:8px;height:8px;border-radius:50%;background:var(--err);cursor:help;z-index:5}\n/* \u963B\u6B62\u7C7B\u63D0\u793A\uFF1A\u7EA2\u70B9\u8109\u51B2\u4E00\u6B21\uFF0C\u8BA9\u300C\u521A\u88AB\u62D2\u7EDD\u300D\u5728\u6E90\u7801\u533A\u4E5F\u6709\u4E00\u773C\u53EF\u89C1\u7684\u53CD\u9988\uFF08\u6587\u672C\u539F\u56E0\u4ECD\u5728 title \u91CC\uFF09 */\n.errdot.pulse{animation:dotPulse 700ms ease-out}\n@keyframes dotPulse{\n  0%{box-shadow:0 0 0 0 var(--err)}\n  55%{box-shadow:0 0 0 8px rgba(192,57,43,0)}\n  100%{box-shadow:0 0 0 0 rgba(192,57,43,0)}\n}\n/* \u88AB\u62E6\u4F4F\u7684\u76EE\u6807\u4E0A\u95EA\u4E00\u5708\u7EA2\u73AF\uFF1A\u53EA\u52A8\u4E0D\u900F\u660E\u5EA6\u4E0E\u7EBF\u5BBD\uFF0C\u4E0D\u4F4D\u79FB\u3001\u4E0D\u6539\u5E03\u5C40 */\n.denyRing{fill:none;stroke:var(--err);stroke-width:2.4;pointer-events:none;\n  animation:denyRing 460ms ease-out forwards}\n@keyframes denyRing{\n  0%{opacity:0;stroke-width:3.4}\n  15%{opacity:.95;stroke-width:3.4}\n  100%{opacity:0;stroke-width:1.2}\n}\n[hidden]{display:none!important}\n/* \u753B\u5E03\u5185\u4E0D\u518D\u6709 HUD\uFF08\u64A4\u9500 / \u91CD\u505A / \u5206\u5C4F / \u5D4C\u5165\u5DF2\u79FB\u5230\u9875\u9762\u9876\u680F\uFF09 */\n.colhead text{pointer-events:none}\n/* \u884C\u5934 / \u5217\u5934\uFF080.25.0\uFF09\uFF1A\u501F\u8868\u683C\u7684\u8BFB\u6CD5 \u2014\u2014 \u60AC\u505C\u5148\u7ED9\u4E00\u5C42\u6D45\u5E95\u9884\u89C8\uFF0C\u9009\u4E2D\u540E\u5B9A\u4F4F\u3002\n   \u884C\u5934\u662F\u884C\u540D\u533A\u90A3\u6761\u547D\u4E2D\u5E26\uFF1B\u5217\u5934\u662F\u8868\u5934\u90A3\u4E00\u683C\uFF0C\u60AC\u505C\u65F6\u6574\u5217\u94FA\u4E00\u5C42\uFF08.colBand \u753B\u5728\u8868\u5934\u7EC4\u91CC\uFF0C\n   \u9AD8\u5EA6\u5EF6\u4F38\u5230\u753B\u5E03\u5E95\u90E8\uFF09\u3002\u884C\u540D\u6587\u5B57\u672C\u8EAB\u4E0D\u63A5\u6536\u6307\u9488\uFF0C\u60AC\u505C\u968F\u6574\u6761\u884C\u5934\u8D70\uFF1B\u03C6 / T \u5FBD\u6807\u4F8B\u5916\u3002 */\n.laneHead{transition:fill .12s}\n.laneHead:hover{fill:var(--hover)}\n.laneHead.cur{fill:var(--hover)}            /* \u8FD9\u4E00\u884C\u91CC\u6709\u9009\u4E2D\u7684\u683C\u5B50\uFF1A\u7ED9\u4E2A\u5F31\u63D0\u793A\uFF0C\u4E0D\u94FA\u6574\u884C */\n.laneName{pointer-events:none}\n.laneName .laneMeta{pointer-events:all}     /* \u03C6 / T \u4ECD\u662F\u53EF\u70B9\u5165\u53E3\uFF08\u684C\u9762\u9760 tspan \u81EA\u8EAB\uFF09 */\n.colBand{fill:transparent;transition:fill .12s}\n.colhead:hover .colBand{fill:var(--hover)}\n.colhead.sel .colBand{fill:var(--accent-bg);opacity:.55}\n/* \u516D\u70B9\u628A\u624B\uFF080.25.0\uFF09\uFF1A\u53EA\u5728\u9009\u4E2D\u683C / \u9009\u4E2D\u884C\u65F6\u51FA\u73B0\uFF0C\u62D6\u52A8\u53EF\u79FB\u52A8\u6574\u884C / \u6574\u5217\u3002\n   \u9759\u6001\u65F6\u53EA\u7528 muted \u7070\u70B9\uFF0C\u4E0D\u62A2\u89C6\u89C9\uFF1B\u60AC\u505C\u53D8\u5F3A\u8C03\u8272\u5E76\u7ED9 grab \u5149\u6807\u3002 */\n.hnd{cursor:grab}\n.hnd:hover{fill:var(--accent)}\n.hnd:active{cursor:grabbing}\n.dropLine{stroke:var(--accent);stroke-width:2;stroke-dasharray:4 3;pointer-events:none}\n.cellSel{fill:none;stroke:var(--accent);stroke-width:1.6;stroke-dasharray:3 2;pointer-events:none}\n/* \u8FDE\u7EBF\u6A21\u5F0F\u7684\u7AEF\u70B9\u5149\u6807\uFF1A\u4E0E\u666E\u901A\u9009\u4E2D\u6846\u4E92\u65A5\uFF0C\u53EA\u670D\u52A1\u952E\u76D8 / \u89E6\u6478\u7AEF\u70B9\u5B9A\u4F4D */\n.linkCursor{fill:none;stroke:var(--accent);stroke-width:2;stroke-dasharray:5 3;pointer-events:none}\n.linkMode .linkCursor{stroke-width:2.4}\n/* \u6570\u636E\u6807\u7B7E\u7684\u7F16\u8F91\u5165\u53E3\u662F\u4E0A\u4E0B\u6587\u6761\uFF08ACTS.cell\uFF09\uFF0C\u753B\u5E03\u4E0A\u4E0D\u518D\u6709 \u270E \u5FBD\u6807 */\n.connectPreview{fill:none;stroke:var(--accent);stroke-width:1.6;stroke-dasharray:4 3;pointer-events:none;opacity:.8}\n/* \u5C31\u5730\u7F16\u8F91\uFF1A\u8F93\u5165\u6846\u662F SVG \u5185\u7684 foreignObject\uFF0C\u8DDF\u7740\u56FE\u5143\u4E00\u8D77\u6EDA\u52A8 */\n/* \u5E95\u90E8\u53EA\u4FDD\u7559\u4E0A\u4E0B\u6587\u64CD\u4F5C\u533A\uFF1A\u9009\u4E2D\u683C / \u8FDE\u7EBF\u6001\u624D\u51FA\u73B0\u5185\u5BB9 */\n.inline-fo{overflow:visible}\n.inline-edit{width:100%;height:100%;box-sizing:border-box;font:12px var(--mono);padding:2px 6px;border:1px solid var(--accent);border-radius:5px;background:var(--panel);color:var(--ink);box-shadow:0 3px 12px rgba(0,0,0,.22);outline:none}\n.inline-edit:focus{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-bg),0 3px 12px rgba(0,0,0,.22)}\n/* \u96F6\u884C\u7A7A\u6001\uFF1A\u6574\u884C\u662F\u53EF\u70B9\u7684\u5360\u4F4D\u6309\u94AE\uFF0C\u60AC\u505C\u65F6\u63CF\u8FB9\u4E0E\u52A0\u53F7\u4E00\u8D77\u63D0\u4EAE */\n.emptyRow{cursor:pointer}\n.emptyRow:hover rect{stroke:var(--accent)}\n.emptyRow:hover .plusBox{fill:var(--accent-bg)}\n.emptyRow:hover .emptyWave{opacity:.7}\n.laneMeta{cursor:text}\n.laneMeta:hover{fill:var(--accent)}\n/* \u5206\u7EC4\u540D\u4EC5\u5728\u7F16\u8F91\u6001\u53EF\u70B9\u6539\uFF08\u6709 data-act \u65F6\u624D\u662F\u53EF\u70B9\u533A\u57DF\uFF09 */\n.laneGroupName[data-act]{cursor:text}\n.laneGroupName[data-act]:hover{fill:var(--accent)}\n/* \u5217\u5934\u53EA\u5269\u7F16\u53F7\uFF1A+ \u2212 | \u4E09\u4E2A\u5217\u52A8\u4F5C\u5DF2\u6536\u8FDB\u4E0A\u4E0B\u6587\u6761\uFF08#tbpanel\uFF09\uFF0C\u753B\u5E03\u4E0A\u4E0D\u518D\u60AC\u505C\u51FA\u6309\u94AE */\n.colhead{cursor:pointer}\n/* \u53C2\u8003\u4E0A\u6E38\u9ED8\u8BA4\u76AE\u80A4\u5916\u89C2\u89C4\u8303\u81EA\u884C\u7ED8\u5236\uFF1A\u5B9E\u7EBF / \u659C\u7EBF\u9634\u5F71 / \u865A\u7EBF / \u7BAD\u5934 / \u603B\u7EBF\u914D\u8272 */\n.waveInk,.waveHair,.waveDash,.waveArrow,.waveBus,.waveLabel{pointer-events:none}\n.waveInk{fill:none;stroke:var(--wave-ink);stroke-width:1.25;stroke-linecap:round;stroke-linejoin:round}\n.waveHair{fill:none;stroke:var(--wave-ink);stroke-width:.65;opacity:.8}\n.waveDash{fill:none;stroke:var(--wave-ink);stroke-width:1.25;stroke-dasharray:2 2}\n.waveArrow{fill:var(--wave-ink);stroke:none}\n.waveBus{stroke:none}\n/* bus \u6BB5\u7684\u8F6E\u5ED3\u5355\u72EC\u4E00\u6761 path\uFF1A\u6BB5\u5185\u4E0D\u753B\u7AD6\u8FB9\uFF0C\u6BB5\u4E0E\u6BB5\u4E4B\u95F4\u624D\u4E0D\u4F1A\u51FA\u73B0\u300C\u88AB\u5207\u4E00\u5200\u300D\u7684\u63A5\u7F1D */\n.waveBusInk{fill:none;stroke:var(--wave-ink);stroke-width:1;stroke-linejoin:round;pointer-events:none}\n.waveLabel{fill:var(--ink);font-size:10px}\n/* \u53EA\u8BFB\u5361\u7247\u4E0E\u7F16\u8F91\u6001\u5171\u7528\u540C\u4E00\u5957\u6392\u7248\uFF1A\u4E0D\u53E6\u8BBE\u5B57\u53F7 / \u5B57\u8272\uFF08\u53EA\u8BFB\u6001\u53EA\u662F\u5C11\u753B\u7F16\u8F91\u63A7\u4EF6\uFF09\u3002 */\n/* \u6E90\u7801 wave \u6BD4\u5168\u5C40\u5468\u671F\u6570\u77ED\u65F6\uFF0C\u5C3E\u90E8\u6309 repeater \u5EF6\u7EED\u753B\u51FA\u53EF\u7EED\u5199\u533A */\n.tailSlot{opacity:.78;pointer-events:none}\n.tailCell:hover{fill:var(--accent-bg)}\n.bus2{fill:var(--bus2)}.bus3{fill:var(--bus3)}.bus4{fill:var(--bus4)}.bus5{fill:var(--bus5)}\n.bus6{fill:var(--bus6)}.bus7{fill:var(--bus7)}.bus8{fill:var(--bus8)}.bus9{fill:var(--bus9)}\n/* ---------------------------------------------------------------------------\n   \u89E6\u6478\u7248\u5F0F\uFF1A\u7C97\u6307\u9488\uFF08\u6216 ?touch=1\uFF09\u65F6\u7531 main.js \u5728 <html> \u4E0A\u52A0 .is-touch\u3002\n   \u684C\u9762\u662F\u300C\u5DE6\u4EE3\u7801 / \u53F3\u65F6\u5E8F\u56FE\u300D+ \u65E0\u5E38\u9A7B\u6587\u5B57\uFF1B\u89E6\u6478\u7AEF\u540C\u5C4F\u4E24\u533A\u3001\u65B9\u5411\u53EF\u7531 HUD \u5207\u6362\uFF0C\n   \u628A\u684C\u9762\u9760 hover \u5B8C\u6210\u7684\u64CD\u4F5C\u6362\u6210\u53EF\u70B9\u6309\u7684\u5E38\u9A7B\u63A7\u4EF6\uFF08\u4E0A\u4E0B\u6587\u6761 / \u505C\u9760\u6761\uFF09\u3002\n   \u6807\u7B7E\u9875\uFF08.tabbar\uFF09\u5DF2\u5728 0.9.13 \u5220\u9664 \u2014\u2014 \u4E24\u533A\u540C\u5C4F\u540E\u5B83\u53EA\u6539\u4E00\u4E2A\u6CA1\u6709\u6D88\u8D39\u8005\u7684 data-view \u5C5E\u6027\u3002\n   --------------------------------------------------------------------------- */\n.tbpanel,.toast{display:none}\n/* \u5168\u5C40\u9876\u680F\uFF082026-11-14 \u8D77\uFF09\uFF1A\u64A4\u9500 / \u91CD\u505A / \u5E03\u5C40 / \u751F\u6210\u5D4C\u5165\u4EE3\u7801\uFF08\u8FDE\u7EBF 0.9.17 \u8D77\u79FB\u5230\u5E95\u90E8\u52A8\u4F5C\u884C\uFF09\u3002\n   \u8FD9\u4E9B\u52A8\u4F5C\u4E0E\u300C\u753B\u5E03\u5185\u5BB9\u300D\u65E0\u5173\uFF0C\u5DE6\u53F3\u5206\u680F\u65F6\u5FC5\u987B\u6A2A\u8DE8\u4E24\u680F \u2014\u2014 \u539F\u5148\u5B83\u4EEC\u753B\u5728 SVG \u91CC\uFF0C\n   \u53EA\u80FD\u5728\u6CE2\u5F62\u533A\u51FA\u73B0\uFF0C\u800C\u4E14\u8981\u9760 translate \u8865\u507F\u8DDF\u968F\u6EDA\u52A8\u3002 */\n.topbar{display:flex;align-items:center;gap:6px;flex:0 0 40px;padding:0 10px;\n  background:var(--panel);border-bottom:1px solid var(--line);user-select:none}\n.topbar .hudBtn{min-width:32px;height:26px;padding:0 7px;border:1px solid var(--line);\n  border-radius:6px;background:var(--src-bg);color:var(--ink);cursor:pointer;\n  display:grid;place-items:center;font:600 14px/1 var(--sans)}\n.topbar .hudBtn:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}\n.topbar .hudBtn[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-bg);color:var(--accent)}\n.topbar .hudBtn.dim,.topbar .hudBtn:disabled{opacity:.4;cursor:default}\n/* \u89C6\u56FE\u5207\u6362\u952E\uFF1A\u7B26\u53F7**\u539F\u6837\u590D\u7528**\u65E7\u4E09\u6BB5\u63A7\u4EF6\u91CC\u4EE3\u8868\u4EE3\u7801\u7684\u90A3\u4E2A { }\uFF0C\u5B57\u53F7/\u5B57\u4F53\u4E0E hudBtn \u5BF9\u9F50\uFF1B\n   \u9760**\u989C\u8272**\u8868\u8FBE\u72B6\u6001 \u2014\u2014 \u7070 = \u4EE3\u7801\u533A\u5173\u7740\uFF0C\u4EAE = \u5F00\u7740\u3002\n   \u671F\u95F4\u8BD5\u8FC7\u65B9\u6CE2/\u5206\u680F\u4E24\u79CD\u81EA\u7ED8 SVG\uFF1A16px \u4E0B\u7EC6\u8282\u8BA4\u4E0D\u51FA\uFF0C\u4E14\u56FE\u6807\u6765\u56DE\u6362\u4F1A\u8BA9\u4EBA\u4EE5\u4E3A\u6309\u94AE\u4E5F\u6362\u4E86\u3002 */\n.topbar .viewBtn{min-width:38px;height:26px;padding:0 8px;border:1px solid var(--line);border-radius:6px;\n  background:var(--src-bg);color:var(--muted);cursor:pointer;font:600 14px/1 var(--sans)}\n.topbar .viewBtn:hover{color:var(--accent);border-color:var(--accent)}\n.topbar .viewBtn.sel{color:var(--accent);border-color:var(--accent);background:var(--accent-bg)}\n.is-touch .topbar .viewBtn{min-width:44px;height:44px;font-size:18px}\n/* \u4E24\u89C6\u56FE\u663E\u9690\uFF080.25.0 \u53D6\u6D88\u300C\u53EA\u4EE3\u7801\u300D\uFF09\uFF1Adata-view \u7531\u72B6\u6001\u5C42\u5199\u5230 .app \u4E0A\u3002\n   both = \u4E24\u4E2A pane \u90FD\u5728\uFF1Bdiagram = \u53EA\u7559\u6CE2\u5F62\u5E76\u628A grid \u6536\u6210\u5355\u683C\u3002\n   \u7528 display:none \u800C\u975E visibility\uFF0C\u8BA9\u9690\u85CF\u7684 textarea \u4E0D\u53C2\u4E0E Tab \u5E8F\u5217\u3001\u4E5F\u4E0D\u5403\u7126\u70B9\u3002 */\n.app[data-view="diagram"]{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr)}\n.app[data-view="diagram"] .pane.src{display:none}\n/* \u53EA\u56FE\u5F62\u65F6\u6CA1\u6709\u7B2C\u4E8C\u680F\u53EF\u8C03\uFF1A\u5206\u9694\u6761\u4E00\u5E76\u6536\u6389\uFF0C\u5426\u5219\u4E2D\u95F4\u4F1A\u7559\u4E00\u6761 7px \u7684\u7A7A\u7F1D */\n.app[data-view="diagram"] .splitter{display:none}\n/* \u53EA\u8BFB\u6001\u6CA1\u6709\u4EFB\u4F55\u5168\u5C40\u52A8\u4F5C \u2192 \u9876\u680F\u6574\u6761\u4E0D\u5360\u4F4D\uFF08\u5426\u5219\u5361\u7247 iframe \u4F1A\u767D\u767D\u9AD8 40px\uFF09 */\n.topbar:empty{display:none}\n/* \u5E95\u90E8\u6309\u94AE\u7684\u7EDF\u4E00\u89C4\u683C\uFF1A\u683C\u7EA7\u52A8\u4F5C / \u884C\xB7\u5217\u52A8\u4F5C / \u5B57\u7B26**\u540C\u4E00\u5C3A\u5BF8\u3001\u540C\u4E00\u95F4\u8DDD\u3001\u540C\u4E00\u5706\u89D2**\u3002\n   \u4EE5\u524D\u4E09\u5957\u6570\u5B57\u5E76\u5B58\uFF08\u52A8\u4F5C 32\xD732\u3001\u5B57\u7B26 30\xD728\u3001\u89E6\u6478 48\xD744\uFF09\uFF0C\u5E76\u6392\u770B\u5C31\u662F\u300C\u6709\u5927\u6709\u5C0F\u300D\uFF1B\n   \u7EC4\u4E0E\u7EC4\u4E4B\u95F4\u8FD8\u63D2\u4E86\u4E00\u6761 1px \u7AD6\u7EBF\uFF0C\u4E24\u4FA7\u5404\u5E26 6px \u5916\u8FB9\u8DDD \u2014\u2014 \u90A3 21px \u7684\u7A7A\u767D\u6B63\u662F\u300C\u76F8\u90BB\u6309\u94AE\u4E4B\u95F4\u6709\u7A7A\u767D\u300D\u3002\n   **`--btn` \u662F\u4E0B\u9650\uFF0C\u4E0D\u662F\u5B9A\u503C**\uFF080.26.0\uFF09\uFF1A\u4E24\u6761\u6309\u94AE\u6761\u90FD\u662F\u7F51\u683C\uFF0C\u5217\u6570\u7531\u53EF\u7528\u5BBD\u5EA6\u7B97\u51FA\u6765\u3001\n   \u6BCF\u5217 `1fr` \u5747\u5206 \u2014\u2014 \u6309\u94AE\u968F\u5C4F\u5BBD\u5FAE\u8C03\uFF0C**\u6574\u6392\u6B63\u597D\u94FA\u6EE1**\uFF0C\u53F3\u4FA7\u4E0D\u7559\u300C\u4E0D\u8DB3\u4E00\u4E2A\u6309\u94AE\u300D\u7684\u7A7A\u767D\u3002\n   **\u9AD8\u5EA6\u56FA\u5B9A\u4E3A `--btn`\uFF0C\u53EA\u6709\u5BBD\u5EA6\u968F\u5217\u5747\u5206**\uFF080.27.0\uFF09\uFF1A\u6539\u4E4B\u524D\u7528 `aspect-ratio:1/1`\uFF0C\n   \u6309\u94AE\u8D8A\u5BBD\u5C31\u8D8A\u9AD8\uFF0C\u4E8E\u662F\u300C14 \u4E2A\u884C\u52A8\u4F5C\u300D\u548C\u300C5 \u4E2A\u5217\u52A8\u4F5C\u300D\u7684\u6309\u94AE\u6761\u4E00\u4E2A 48px \u4E00\u4E2A 43px\uFF0C\n   \u9009\u4E2D\u5BF9\u8C61\u4E00\u6362\uFF0C\u6574\u6761\u5C31\u8DF3 7px\u3002\u6539\u6210\u5B9A\u9AD8\u4E4B\u540E\uFF0C\u505C\u9760\u533A\u9AD8\u5EA6\u53EA\u8DDF\u300C\u6392\u6570\u300D\u6709\u5173\u3002 */\n:host{--btn:32px;--btn-gap:4px;--dock-pad:4px 8px;--dock-row:40px;--btn-radius:6px}\n.is-touch{--btn:44px;--btn-gap:6px;--dock-pad:6px 8px;--dock-row:56px;--btn-radius:10px}\n.is-touch .topbar{flex:0 0 54px;padding:0 8px;gap:8px}\n.is-touch .topbar .hudBtn{min-width:44px;height:44px;padding:0;font-size:18px;border-radius:10px}\n.is-touch body{overflow:hidden}\n.is-touch .app{flex:1 1 auto;height:auto;min-height:0}\n/* \u89E6\u6478\u7AEF\u4E0D\u518D\u5206\u300C\u6E90\u7801\u9875 / \u65F6\u5E8F\u56FE\u9875\u300D\u4E24\u9875\uFF1A\u4E24\u533A\u540C\u5C4F\uFF0C\u65B9\u5411\u540C HUD \u7684\u5207\u6362\u6309\u94AE */\n\n.is-touch .pane.src{border-right:0;border-bottom:0}\n.is-touch .gutter{font-size:13px;line-height:1.9}\n.is-touch .pane.src textarea{font-size:14px;line-height:1.9;padding-left:52px}\n/* \u753B\u5E03\u8FD9\u4E00\u5C42\uFF1A\u5141\u8BB8\u5355\u6307\u539F\u751F\u5E73\u79FB\u4E0E\u60EF\u6027\uFF08`pan-x pan-y`\uFF09\uFF0C**\u4F46\u628A\u300C\u6D4F\u89C8\u5668\u6574\u9875\u7F29\u653E\u300D\u5173\u6389**\u3002\n   \u8FD9\u4E00\u6761\u662F\u634F\u5408\u7F29\u653E\u7684\u524D\u63D0\uFF0C\u4E0D\u662F\u987A\u624B\u6539\u7684\uFF1A`manipulation` \u7684\u8BED\u4E49\u662F pan + **pinch-zoom**\uFF0C\n   \u4E24\u6307\u843D\u4E0B\u65F6\u6D4F\u89C8\u5668\u4F1A\u628A\u5B83\u5F53\u6210\u9875\u9762\u7F29\u653E\u5403\u6389 \u2014\u2014 CDP \u4E24\u6307\u62C9\u5F00\u5B9E\u6D4B\uFF1Apointercancel\xD72\u3001\n   visualViewport.scale 1\u21924.96\u3001\u7F16\u8F91\u5668\u8FDE\u4E00\u4E2A pointermove \u90FD\u6536\u4E0D\u5230\uFF08\u4E8E\u662F\u300C\u634F\u5408\u300D\u5728\u624B\u673A\u4E0A\n   \u4E00\u76F4\u662F\u300C\u8FDE\u9876\u680F\u548C\u6E90\u7801\u4E00\u8D77\u653E\u5927\u300D\uFF09\u3002\u6362\u6210 `pan-x pan-y` \u540E\u540C\u4E00\u624B\u52BF\u5B8C\u6574\u4EA4\u56DE\uFF0820 \u6B21 move\u3001\n   0 \u6B21 cancel\uFF09\uFF0C\u5355\u6307\u6EDA\u52A8\u4E0E\u60EF\u6027\u5206\u6BEB\u4E0D\u52A8 \u2014\u2014 \u8FD9\u662F\u552F\u4E00\u65E2\u62FF\u56DE\u634F\u5408\u3001\u53C8\u4E0D\u727A\u7272\u6EDA\u52A8\u624B\u611F\u7684\u7EC4\u5408\u3002\n   `none` \u4E0D\u884C\uFF1A\u5B83\u8FDE\u5355\u6307\u539F\u751F\u6EDA\u52A8\u4E00\u8D77\u5173\u6389\uFF0C\u90A3\u53EA\u9002\u5408\u4E0B\u9762\u76F8\u4F4D\u5C3A\u90A3\u79CD\u4E34\u65F6\u6A21\u5F0F\u3002 */\n.is-touch .svgwrap{touch-action:pan-x pan-y;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}\n/* \u76F8\u4F4D\u6A21\u5F0F\u6253\u5F00\u65F6\uFF08\u90A3\u4E00\u884C\u53EF\u4EE5\u76F4\u63A5\u6293\u7740\u6CE2\u5F62\u6A2A\u5411\u62D6\uFF09\uFF0C\u753B\u5E03\u8FD9\u4E00\u5C42\u4E0D\u53C2\u4E0E\u539F\u751F\u5E73\u79FB\u3002\u539F\u56E0\u662F\u6D4F\u89C8\u5668\u7684\n   \u300C\u6EDA\u52A8\u4EF2\u88C1\u300D\uFF1A`touch-action:manipulation` \u5141\u8BB8\u5E73\u79FB\uFF0C\u4E00\u6B21\u6A2A\u5411\u62D6\u52A8\u4F1A\u88AB\u5224\u6210\u6EDA\u52A8\u5E76\u53D1\u51FA pointercancel \u2014\u2014\n   \u800C\u62D6\u52A8\u4E2D\u6BCF\u5E27\u90FD\u5728\u91CD\u7ED8\uFF0C\u6307\u9488\u6D41\u4E00\u65AD\uFF0C\u62D6\u52A8\u5C31\u53EA\u5269\u524D\u4E24\u5E27\uFF08Android \u5B9E\u6D4B\uFF1A\u6309\u4E0B\u53BB\u52A8\u4E00\u4E0B\uFF0C\u540E\u9762\u600E\u4E48\u62D6\u90FD\u4E0D\u52A8\uFF09\u3002\n   \u53EA\u5728\u76F8\u4F4D\u6A21\u5F0F\u671F\u95F4\u7981\u7528\uFF0C\u5176\u4F59\u65F6\u5019\u7167\u5E38\u6ED1\u52A8\u770B\u56FE\u3002\n   **\u4EE3\u4EF7\u4E0E\u8865\u507F**\uFF1A\u8FD9\u4E00\u6BB5\u624B\u52BF\u671F\u95F4\u539F\u751F\u6EDA\u52A8\u4E0D\u53EF\u7528\uFF0C\u6240\u4EE5\u300C\u62D6\u522B\u5904 = \u79FB\u52A8\u89C6\u56FE\u300D\u7531\u4EA4\u4E92\u5C42\u6309\u6307\u9488\u4F4D\u79FB\u624B\u5199\n   `scrollLeft / scrollTop`\uFF080.14.2\uFF0C\u89C1 interactions.js \u7684 tPan*\uFF09\uFF1B\u6A21\u5F0F\u4E00\u6536\u5C31\u64A4\u6389\u8FD9\u4E2A\u7C7B\uFF0C\u7ACB\u523B\u56DE\u5230\n   \u539F\u751F\u6EDA\u52A8 \u2014\u2014 \u8DDF\u624B\u3001\u56DE\u5F39\u3001\u6EDA\u52A8\u6761\u90FD\u8FD8\u5728\u3002 */\n.svgwrap.is-phase{touch-action:none}\n.is-touch .cellSel{stroke-width:2.4}\n/* \u4E0A\u4E0B\u6587\u6761\u4E0E\u5B57\u7B26\u505C\u9760\u6761\uFF1A\u540C\u4E00\u5957\u6309\u94AE\u89C4\u683C\uFF08\u89C1\u4E0A\u9762\u7684 --btn \u4EE4\u724C\uFF09\u3002\n   \u4E24\u6761\u90FD\u9489\u5728\u6CE2\u5F62\u533A\u5E95\u90E8\u3001\u9009\u4E2D\u5BF9\u8C61\u624D\u51FA\u73B0\u3001\u4E92\u76F8\u6392\u65A5\uFF1B\u6309\u94AE\u4E00\u6B21\u5168\u94FA\uFF0C\u653E\u4E0D\u4E0B\u5C31\u6362\u884C\u3002 */\n.tbpanel.open{display:grid;grid-template-columns:repeat(auto-fill,minmax(var(--btn),1fr));\n  gap:var(--btn-gap);padding:var(--dock-pad);min-height:var(--dock-row);align-content:center;\n  background:var(--panel);border-top:1px solid var(--line)}\n/* \u52A8\u4F5C\u6309\u94AE\uFF08\u884C / \u5217 / \u683C\u7EA7\u5171\u7528\uFF09\uFF1A\u6B63\u65B9\u5F62 + 24px \u7EBF\u6027\u56FE\u6807\u3002\n   \u5706\u89D2\u4E0E\u5C3A\u5BF8\u7EDF\u4E00\u8D70\u4EE4\u724C \u2014\u2014 \u683C\u7EA7\u52A8\u4F5C\u5728\u505C\u9760\u6761\u91CC\uFF0C\u884C / \u5217\u5728\u4E0A\u4E0B\u6587\u6761\u91CC\uFF0C\u4E09\u8005\u5FC5\u987B\u540C\u5927\u624D\u5BF9\u5F97\u9F50\u3002 */\n.tbpanel button.ctxbtn{width:auto;height:var(--btn);min-width:0;padding:0;\n  border:1px solid var(--line);border-radius:var(--btn-radius);background:var(--src-bg);color:var(--ink);\n  display:grid;place-items:center;cursor:pointer;touch-action:manipulation}\n/* \u56FE\u6807 24px\uFF0832 \u21D2 \u504F\u79FB 4\u300144 \u21D2 \u504F\u79FB 10\uFF09+ 2px \u63CF\u8FB9 + \u5706\u7AEF\u70B9\u3002\n   \u7AEF\u70B9\u5FC5\u987B\u4E24\u7AEF\u4E00\u81F4\uFF1A\u684C\u9762\u4E0D\u5199\u5C31\u662F butt/miter\uFF0C\u540C\u4E00\u4E2A\u56FE\u6807\u5728\u4E24\u7AEF\u62D0\u89D2\u5F62\u72B6\u4F1A\u4E0D\u540C\u3002\n   24 \u5355\u4F4D\u7684\u56FE\u6807\u5FC5\u987B 1:1 \u6E32\u67D3 \u2014\u2014 \u7F29\u5230 17px \u5C31\u662F 0.708 \u500D\uFF0C1px \u63CF\u8FB9\u53D8\u4E9A\u50CF\u7D20\u3001\u4E2D\u5FC3\u843D\u5728\u534A\u50CF\u7D20\u4E0A\u3002 */\n.tbpanel button.ctxbtn svg{width:24px;height:24px;fill:none;stroke:currentColor;\n  stroke-width:2;stroke-linecap:round;stroke-linejoin:round}\n.tbpanel button.ctxbtn:hover{border-color:var(--accent);color:var(--accent)}\n.tbpanel button.ctxbtn:active{background:var(--accent-bg);border-color:var(--accent);color:var(--accent)}\n.tbpanel button.ctxbtn[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-bg);color:var(--accent)}\n\n/* \u5B57\u7B26\u505C\u9760\u6761\uFF1A\u540C\u4E00\u4E2A\u7EC4\u4EF6\uFF08#chardock / .chipbtn\uFF09\uFF0C\u684C\u9762\u4E0E\u89E6\u6478\u53EA\u5DEE\u5C3A\u5BF8\u4EE4\u724C\u3002\n   0.26.0\uFF1A23 \u9897\u4E00\u6B21\u5168\u94FA\uFF0C\u653E\u4E0D\u4E0B\u5C31\u6362\u884C\uFF08\u4E0D\u518D\u6298\u53E0\u3001\u4E0D\u518D\u6A2A\u5411\u6EDA\u52A8\uFF09\u3002 */\n.chardock{display:none}\n.chardock.open{display:grid;grid-template-columns:repeat(auto-fill,minmax(var(--btn),1fr));\n  align-content:center;gap:var(--btn-gap);padding:var(--dock-pad);min-height:var(--dock-row);\n  background:var(--panel);border-top:1px solid var(--line);user-select:none}\n/* \u5B57\u7B26\u6309\u94AE\uFF1A\u6B63\u65B9\u5F62\uFF0C\u6CE2\u5F62\u5B57\u5F62\u94FA\u5E95\u3001\u5B57\u7B26\u538B\u5728\u4E0A\u9762\u3002\u5C3A\u5BF8\u4E0E\u52A8\u4F5C\u6309\u94AE\u5B8C\u5168\u4E00\u81F4\u3002 */\n.chardock .chipbtn{position:relative;width:auto;height:var(--btn);min-width:0;\n  padding:0;border:1px solid var(--line);border-radius:var(--btn-radius);\n  background:var(--src-bg);color:var(--ink);overflow:hidden;cursor:pointer;touch-action:manipulation}\n.chardock .chipbtn:not(.act) svg{position:absolute;inset:0;width:100%;height:100%;\n  --wave-ink:var(--muted);opacity:.85;pointer-events:none}\n.chardock .chipbtn span{position:relative;font:600 12px var(--mono);\n  text-shadow:0 0 3px var(--panel),0 0 3px var(--panel)}\n/* \u683C\u7EA7\u4E09\u4E2A\u52A8\u4F5C\uFF08label / node / link\uFF09\u753B\u7684\u662F 24 \u5355\u4F4D stroke \u56FE\uFF0C\u4E0D\u5957\u5B57\u7B26\u90A3\u5957\u914D\u8272\u3002\n   \u26A0\uFE0F \u57FA\u7840\u89C4\u5219\u7528 `:not(.act)` \u628A\u5B83\u6392\u9664\u5728\u5916\uFF08\u4E0D\u662F\u9760\u58F0\u660E\u987A\u5E8F\u62A2\uFF09\u2014\u2014 \u8E29\u8FC7\u4E24\u6B21\uFF1A\n   \xB7 0.18.0\uFF1A`.chipbtn svg{inset:0}` \u628A `left/top:50%` \u91CD\u7F6E\u6210 auto\uFF0C\u56FE\u6807\u88AB translate \u63A8\u51FA\u6309\u94AE\u518D\u88AB\u88C1\u6389\uFF1B\n   \xB7 0.19.3\uFF1A`.is-touch` \u90A3\u6761\u53C8\u628A `inset:0` \u76D6\u56DE\u6765\uFF0C44px \u6309\u94AE\u91CC\u53EA\u5269\u5DE6\u4E0A\u89D2\u4E00\u6761\u7F1D\u3002 */\n.chardock .chipbtn.act svg{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);\n  width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:2;\n  stroke-linecap:round;stroke-linejoin:round}\n.chardock .chipbtn.on{border-color:var(--accent);background:var(--accent-bg)}\n.chardock .chipbtn.on svg{--wave-ink:var(--accent);opacity:1}\n.chardock .chipbtn.on span{color:var(--accent)}\n.chardock .chipbtn:hover{border-color:var(--accent)}\n.chardock .chipbtn:active{background:var(--accent-bg);border-color:var(--accent)}\n/* \u89E6\u6478\u7AEF\u53EA\u8986\u76D6\u5B57\u53F7\uFF0815px\uFF09\uFF1B\u5C3A\u5BF8 / \u5706\u89D2 / \u95F4\u8DDD\u5168\u90E8\u6765\u81EA\u4EE4\u724C\u3002 */\n.is-touch .chardock .chipbtn span{font:600 15px var(--mono)}\n/* \u8F7B\u63D0\u793A\uFF1A\u89E6\u6478\u7AEF\u9489\u5728\u89C6\u53E3\u5E95\u90E8\uFF0C\u5FC5\u987B\u6309\u505C\u9760\u533A\u9AD8\u5EA6\u62AC\u8D77\u6765\uFF08--toast-lift \u7531 touch.js \u5199\uFF09\uFF0C\n   \u5426\u5219\u4F1A\u6B63\u597D\u538B\u5728\u5B57\u7B26\u505C\u9760\u6761\u4E0A\u3002 */\n.is-touch .toast{display:none;position:fixed;left:50%;bottom:calc(12px + var(--toast-lift,0px));transform:translateX(-50%);z-index:30;\n  max-width:88vw;padding:8px 14px;border-radius:10px;background:var(--ink);color:var(--bg);\n  font:12px/1.5 var(--sans);box-shadow:0 4px 16px rgba(0,0,0,.22);pointer-events:none}\n.is-touch .toast.show{display:block}\n/* \u9996\u5C4F\u624B\u52BF\u5F15\u5BFC\uFF1A\u6307\u5C16\u4ECE\u53F3\u4E0B\u6ED1\u5230\u683C\u5B50 \u2192 \u70B9\u4E00\u4E0B + \u8F7B\u6D9F\u6F2A \u2192 \u518D\u70B9\u4E00\u4E0B\uFF08\u53CC\u6572\u8FDB\u5C31\u5730\u7F16\u8F91\uFF09\u3002\n   \u753B\u5728\u9875\u9762\u56FA\u5B9A\u5C42\u4E0A\uFF0C\u64AD\u5B8C\u7531 JS \u79FB\u9664\uFF1B\u4E0D\u5360\u753B\u5E03\u3001\u4E0D\u8FDB\u6CE2\u5F62\u5C42\u3001\u4E0D\u5199\u4EFB\u4F55\u6587\u5B57\u3002 */\n.gesture{position:fixed;z-index:35;width:0;height:0;pointer-events:none}\n.gesture i{position:absolute;display:block;border-radius:50%}\n.gesture .finger{width:22px;height:22px;margin:-11px 0 0 -11px;background:var(--accent);\n  border:2px solid var(--bg);box-shadow:0 2px 8px rgba(0,0,0,.3);animation:gFinger 2.2s ease-out forwards}\n.gesture .ring{width:40px;height:40px;margin:-20px 0 0 -20px;border:2.5px solid var(--accent);opacity:0}\n.gesture .r1{animation:gRing .7s ease-out .55s forwards}\n.gesture .r2{animation:gRing .7s ease-out 1s forwards}\n@keyframes gFinger{\n  0%{transform:translate(24px,32px) scale(1);opacity:0}\n  8%{transform:translate(24px,32px) scale(1);opacity:.95}\n  22%{transform:translate(0,0) scale(1)}\n  30%{transform:translate(0,0) scale(.78)}\n  38%{transform:translate(0,0) scale(1)}\n  48%{transform:translate(0,0) scale(.78)}\n  56%{transform:translate(0,0) scale(1)}\n  70%{transform:translate(0,0) scale(1);opacity:.95}\n  100%{transform:translate(0,0) scale(1);opacity:0}\n}\n@keyframes gRing{\n  0%{transform:scale(.35);opacity:1}\n  100%{transform:scale(1.7);opacity:0}\n}\n.is-touch .errdot{width:12px;height:12px;top:12px;right:12px}\n.is-touch .inline-edit{font-size:16px;height:100%}\n\n/* \u5C0A\u91CD\u7CFB\u7EDF\u7684\u300C\u51CF\u5C11\u52A8\u6001\u6548\u679C\u300D\u504F\u597D\u3002\n   \u8FD9\u91CC\u53EA\u5173\u6389**\u81EA\u52A8\u64AD\u653E**\u7684\u88C5\u9970\u52A8\u6548\uFF0C\u4E0D\u78B0\u4EA4\u4E92\u53CD\u9988\uFF1A\n   \xB7 \u9996\u5C4F\u624B\u52BF\u5F15\u5BFC\uFF08gFinger 2.2s + \u4E24\u5708\u6269\u6563\uFF09\u662F\u6253\u5F00\u9875\u9762\u81EA\u5DF1\u5C31\u5F00\u59CB\u64AD\u7684\uFF0C\n     \u5BF9\u524D\u5EAD\u654F\u611F\u7684\u4EBA\u4E0D\u53CB\u597D\uFF08WCAG 2.2.2 \u8981\u6C42\u8FD9\u7C7B\u52A8\u6548\u53EF\u505C\uFF09\u2014\u2014 \u76F4\u63A5\u4E0D\u64AD\u3002\n     \u5B83\u53EA\u662F\u63D0\u793A\u300C\u70B9\u683C\u5B50\u53EF\u4EE5\u7F16\u8F91\u300D\uFF0C\u8282\u70B9\u5DF2\u88AB JS \u5728 2.4s \u540E\u81EA\u884C\u79FB\u9664\uFF0C\u9690\u85CF\u4E0D\u5F71\u54CD\u4EFB\u4F55\u903B\u8F91\u3002\n   \xB7 \u9519\u8BEF\u7EA2\u70B9\u7684\u8109\u51B2\u662F\u7EAF\u88C5\u9970\uFF0C\u7EA2\u70B9\u672C\u8EAB\u5E38\u4EAE\u5C31\u591F\u4F20\u8FBE\u300C\u6709\u9519\u300D\u3002 */\n@media (prefers-reduced-motion:reduce){\n  .gesture{display:none}\n  .errdot.pulse{animation:none}\n}\n\n/* ---------------------------------------------------------------------------\n   \u7AD9\u70B9\u81EA\u7528\u53EA\u8BFB\u9884\u89C8\uFF08\u9996\u9875 logo \u4F4D\u3001\u6559\u7A0B\u9875\u793A\u4F8B\uFF0C\u7531 src/demo.js \u6E32\u67D3\uFF09\n   \u6309\u5BB9\u5668\u5BBD\u7B49\u6BD4\u7F29\u653E\u3001\u4E0D\u51FA\u6EDA\u52A8\u6761 \u2014\u2014 \u4E0E\u628A\u56FE\u5F53\u56FE\u7247\u770B\u7684\u8BC9\u6C42\u4E00\u81F4\u3002\n   --------------------------------------------------------------------------- */\n.tb-preview{position:relative;overflow:hidden}\n.tb-preview .svgwrap{overflow:hidden}\n.tb-preview .svgwrap svg{display:block;width:100%;height:auto;margin:0}\n\n/* \u9884\u89C8\u5361\u53F3\u4FA7\u4E0A\u89D2\u7684\u94C5\u7B14\uFF1A\u8DF3\u7F16\u8F91\u5668\u5E76\u5E26\u4E0A\u8FD9\u5F20\u56FE\u7684\u6E90\u7801\uFF08\u9884\u89C8\u672C\u8EAB\u4ECD\u53EA\u8BFB\uFF09\u3002\n   \u4E0E\u7F16\u8F91\u5668\u540C\u4E00\u5957\u914D\u8272\uFF0C\u660E\u6697\u4E3B\u9898\u81EA\u52A8\u8DDF\u968F\u3002 */\n.tb-edit{position:absolute;right:8px;top:8px;z-index:3;box-sizing:border-box;\n  width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;\n  border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--muted);\n  text-decoration:none;opacity:.9;transition:opacity .12s,color .12s,border-color .12s,background .12s}\n.tb-edit:hover,.tb-edit:focus-visible{opacity:1;color:var(--accent);border-color:var(--accent);background:var(--accent-bg);outline:none}\n.tb-edit svg{display:block;width:16px;height:16px}\n\n/* Plugin-only styles: the "inside a note" shapes the main stylesheet has no idea about.\n   The main stylesheet is scoped into the shadow root at build time (:root \u2192 :host,\n   body \u2192 .tb-root); these rules land there too, so nothing here can touch Obsidian\'s UI. */\n\n/* --- Shell: isolate the host and give the code block a stable box ----------------------- */\n.tb-shell {\n  position: relative;\n  display: block;\n  width: 100%;\n  border-radius: 6px;\n  overflow: hidden;\n  background: var(--background-primary, #fff);\n}\n.tb-root {\n  position: relative;\n  height: auto;\n  min-height: 0;\n}\n\n/* --- Preview: diagram only, no editing chrome ----------------------------------------- */\n.tb-root:not(.is-editing) .topbar,\n.tb-root:not(.is-editing) .dockzone,\n.tb-root:not(.is-editing) .pane.src {\n  display: none;\n}\n.tb-root:not(.is-editing) .app {\n  display: block;\n  height: auto;\n}\n.tb-root:not(.is-editing) .pane.diagram {\n  display: block;\n  height: auto;\n}\n.tb-root:not(.is-editing) .svgwrap {\n  height: auto;\n  overflow: visible;\n}\n.tb-root:not(.is-editing) .svgwrap svg {\n  display: block;\n  width: 100%;\n  height: auto;\n}\n\n/* --- Editing: a fixed viewport the editor can lay itself out in ------------------------ */\n.tb-root.is-editing {\n  height: min(72vh, 560px);\n  min-height: 380px;\n}\n.tb-root.is-editing .app {\n  display: grid;\n  flex: 1 1 auto;\n  min-height: 0;\n}\n\n/* --- Pencil / checkmark: same spot in both states ------------------------------------- */\n.tb-toggle {\n  position: absolute;\n  top: 6px;\n  right: 6px;\n  z-index: 40;\n  width: 30px;\n  height: 30px;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  padding: 0;\n  border: 1px solid var(--line);\n  border-radius: 6px;\n  background: var(--panel);\n  color: var(--muted);\n  cursor: pointer;\n  opacity: 0;\n  transition: opacity .12s ease;\n}\n.tb-shell:hover .tb-toggle,\n.tb-root.is-editing .tb-toggle,\n.tb-toggle:focus-visible {\n  opacity: 1;\n}\n.tb-toggle:hover {\n  color: var(--ink);\n  background: var(--hover);\n}\n.tb-toggle svg {\n  width: 16px;\n  height: 16px;\n  fill: none;\n  stroke: currentColor;\n  stroke-width: 1.8;\n  stroke-linecap: round;\n  stroke-linejoin: round;\n}\n.tb-toggle .ico-done { display: none; }\n.tb-root.is-editing .tb-toggle .ico-done { display: block; }\n.tb-root.is-editing .tb-toggle .ico-edit { display: none; }\n\n/* --- Parse failure: one visible line, source untouched --------------------------------- */\n.tb-error {\n  padding: 8px 10px;\n  font: 12px/1.5 var(--sans);\n  color: var(--err);\n  background: var(--err-bg);\n  border-top: 1px solid var(--line);\n}\n';
 
 // src/main.js
 var LANG = "wavejson";

@@ -9,6 +9,23 @@ only when they change what you see.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.4] - 2026-11-19
+
+Synced with TimingBench 0.27.1.
+
+### Changed
+
+- **Bus and `x` rows are drawn as full-height blocks** whose transition belongs to the
+  incoming cell, matching upstream WaveDrom's `vm` / `x` bricks. Transitions no longer
+  look shifted half a cell to the left.
+- **Bus labels are centred on the drawn block**, not on the cell midpoint, so long labels
+  such as `head` / `body` sit properly inside their block.
+- Hatch lines on `x` rows are clipped against the transition edges instead of running
+  into the gap the transition leaves.
+- Toolbar buttons now share one size (32×26 for actions, 38 wide for the view toggle);
+  the period icon is a `T`.
+- The split between source and diagram can be dragged (desktop editor).
+
 ## [0.1.3] - 2026-11-18
 
 Synced with TimingBench 0.26.0, which reworked the read-only view.
@@ -70,6 +87,7 @@ First release.
 - The note is written only when editing ends. Returning to a cached tab keeps
   the uncommitted changes, and they are saved when you exit editing.
 
+[0.1.4]: https://github.com/udarent/obsidian-plugins-wavejson/compare/0.1.3...0.1.4
 [0.1.3]: https://github.com/udarent/obsidian-plugins-wavejson/compare/0.1.2...0.1.3
 [0.1.2]: https://github.com/udarent/obsidian-plugins-wavejson/compare/0.1.1...0.1.2
 [0.1.1]: https://github.com/udarent/obsidian-plugins-wavejson/compare/0.1.0...0.1.1
