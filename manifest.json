@@ -1,7 +1,7 @@
 {
   "id": "wavejson",
   "name": "WaveJSON",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "minAppVersion": "1.4.0",
   "description": "Render WaveJSON timing diagrams in your notes and edit them in place.",
   "author": "udarent",
