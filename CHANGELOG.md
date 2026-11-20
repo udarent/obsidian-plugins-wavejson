@@ -9,6 +9,29 @@ only when they change what you see.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.7] - 2026-11-20
+
+Synced with TimingBench 0.27.4 and 0.27.5.
+
+### Changed
+
+- **Larger text on the canvas.** Row names, bus labels and cell labels now use upstream's
+  scale (14px instead of 12px), so a diagram in a note reads the same as on wavedrom.com.
+  The diagram box size is unchanged — only the type inside it grew.
+- **Edge geometry reworked** to match upstream. Arcs now start and stop at the midpoint of
+  the transition band instead of the cell boundary, and the polyline shapes were
+  re-measured, so existing `node` anchors land slightly differently.
+- The waveform band height is derived from the cell width rather than a separate
+  two-state switch, so hscale no longer changes the band's proportions.
+
+### Fixed
+
+- `x` blocks no longer let the column grid show through the hatch.
+- A block feeding into `z` draws the two shallow bends upstream uses (`vmz`) instead of
+  stopping dead at the cell edge.
+- Several `z` / `x` / `u` / `d` transition defects found while reviewing the tutorial's
+  first example.
+
 ## [0.1.6] - 2026-11-20
 
 Synced with TimingBench 0.27.3 — two clock rendering fixes.
@@ -117,6 +140,7 @@ First release.
 - The note is written only when editing ends. Returning to a cached tab keeps
   the uncommitted changes, and they are saved when you exit editing.
 
+[0.1.7]: https://github.com/udarent/obsidian-plugins-wavejson/compare/0.1.6...0.1.7
 [0.1.6]: https://github.com/udarent/obsidian-plugins-wavejson/compare/0.1.5...0.1.6
 [0.1.5]: https://github.com/udarent/obsidian-plugins-wavejson/compare/0.1.4...0.1.5
 [0.1.4]: https://github.com/udarent/obsidian-plugins-wavejson/compare/0.1.3...0.1.4
