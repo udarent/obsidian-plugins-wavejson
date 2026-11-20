@@ -1310,11 +1310,16 @@ function waveGlyph(ch, prev, X, T2, M, B, W, opt) {
     }
     var kind = o2.pblock ? o2.psame ? "join" : "cross" : prev ? "enter" : "edge";
     var ra = kind === "enter" ? railEnd(prev, T2, B) : null;
-    if (kind === "enter" && ra !== T2 && ra !== B) kind = "cross";
+    if (kind === "enter" && ra !== T2 && ra !== B) kind = "mid";
     var fp, bd, left = null;
-    if (kind === "cross") {
+    if (kind === "cross" || kind === "mid") {
       fp = [[X + br, T2], [x1, T2], [x1, B], [X + br, B], [X + bm, M]];
-      bd = "M" + (X + br) + "," + T2 + " H" + x1 + " M" + (X + br) + "," + B + " H" + x1 + " M" + (X + bi) + "," + T2 + " L" + (X + br) + "," + B + " M" + (X + bi) + "," + B + " L" + (X + br) + "," + T2 + " M" + X + "," + T2 + " H" + (X + bi) + " M" + X + "," + B + " H" + (X + bi);
+      left = [X + br, T2, X + br, B];
+      if (kind === "mid") {
+        bd = "M" + X + "," + M + " H" + (X + bm) + " M" + (X + bm) + "," + M + " L" + (X + br) + "," + T2 + " M" + (X + bm) + "," + M + " L" + (X + br) + "," + B + " M" + (X + br) + "," + T2 + " H" + x1 + " M" + (X + br) + "," + B + " H" + x1;
+      } else {
+        bd = "M" + (X + br) + "," + T2 + " H" + x1 + " M" + (X + br) + "," + B + " H" + x1 + " M" + (X + bi) + "," + T2 + " L" + (X + br) + "," + B + " M" + (X + bi) + "," + B + " L" + (X + br) + "," + T2 + " M" + X + "," + T2 + " H" + (X + bi) + " M" + X + "," + B + " H" + (X + bi);
+      }
       if (!o2.psame) {
         if (o2.pbus) o.push('<polygon class="waveBus ' + (o2.pcls || "bus2") + '" points="' + pts([[X + bi, T2], [X, T2], [X, B], [X + bi, B], [X + bm, M]]) + '" stroke="none"/>');
         else o.push(waveHatch(X, X + bm, T2, B, W, [X, T2, X, B], capEdges(X, bi, bm, T2, M, B)));
@@ -1346,9 +1351,20 @@ function waveGlyph(ch, prev, X, T2, M, B, W, opt) {
     var cy = waveLevel(ch, T2, M, B);
     if (cy === null) cy = M;
     var py = prev ? waveLevel(prev, T2, M, B) : null;
+    var dash = ch === "d" || ch === "u", soft = dash || /[ud]/.test(prev || "");
     var vary = py !== null && Math.abs(py - cy) > 1;
-    var d = vary ? "M" + X + "," + py + " H" + px + " L" + ex + "," + cy + " H" + x1 : "M" + X + "," + cy + " H" + x1;
-    o.push('<path class="' + (ch === "d" || ch === "u" ? "waveDash" : "waveInk") + '" d="' + d + '"/>');
+    var exS = soft ? X + Math.min(W * 0.44, 17) : ex, tail;
+    var d;
+    if (vary) {
+      d = "M" + X + "," + py + " H" + px;
+      if (soft) {
+        var c1 = px + Math.min(4, W * 0.1), c2 = exS - Math.min(10, W * 0.26);
+        d += " C" + c1 + "," + (py + cy) / 2 + " " + c2 + "," + cy + " " + exS + "," + cy;
+      } else d += " L" + exS + "," + cy;
+      o.push('<path class="waveInk" d="' + d + '"/>');
+      tail = "M" + exS + "," + cy + " H" + x1;
+    } else tail = "M" + X + "," + cy + " H" + x1;
+    o.push('<path class="' + (dash ? "waveDash" : "waveInk") + '" d="' + tail + '"/>');
   }
   return '<g class="waveGlyph" data-w="' + esc(ch) + '" pointer-events="none">' + o.join("") + "</g>";
 }

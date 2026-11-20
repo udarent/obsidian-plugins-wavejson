@@ -9,6 +9,22 @@ only when they change what you see.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.5] - 2026-11-20
+
+Synced with TimingBench 0.27.2 — rendering fixes only, no API or layout changes.
+
+### Fixed
+
+- **`z` rows meeting a bus block** used to be drawn as a cross transition: the
+  high-impedance line broke at the cell boundary and a spurious "X" appeared. It now
+  follows upstream's `mid` entry — the line runs a few pixels into the new cell and then
+  forks — so `z` slots into a block without the break.
+- **`u` / `d` edges** now match upstream: the level segments are drawn as hairlines and
+  the transition is a solid cubic Bézier spanning about half a cell, instead of a dashed
+  cell with a short straight step.
+- Fixed a path-construction bug that could emit a horizontal command with a concatenated
+  coordinate and draw a line off the canvas.
+
 ## [0.1.4] - 2026-11-19
 
 Synced with TimingBench 0.27.1.
@@ -87,6 +103,7 @@ First release.
 - The note is written only when editing ends. Returning to a cached tab keeps
   the uncommitted changes, and they are saved when you exit editing.
 
+[0.1.5]: https://github.com/udarent/obsidian-plugins-wavejson/compare/0.1.4...0.1.5
 [0.1.4]: https://github.com/udarent/obsidian-plugins-wavejson/compare/0.1.3...0.1.4
 [0.1.3]: https://github.com/udarent/obsidian-plugins-wavejson/compare/0.1.2...0.1.3
 [0.1.2]: https://github.com/udarent/obsidian-plugins-wavejson/compare/0.1.1...0.1.2
