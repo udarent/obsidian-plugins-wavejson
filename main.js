@@ -1294,7 +1294,7 @@ function waveGlyph(ch, prev, X, T2, M, B, W, opt) {
   if (!(Core.BUS.test(ch) || Core.CLOCK.test(ch) || /[01xzud]/.test(ch))) ch = "x";
   var e = blockEdge(W), bi = e.bi, br = e.br, bm = e.bm;
   var isBus = Core.BUS.test(ch), isX = ch === "x";
-  if (o2.pblock && !isBus && !isX)
+  if (o2.pblock && !isBus && !isX && !Core.CLOCK.test(ch))
     o.push(blockCap(ch, o2.pbus ? o2.pcls || "bus2" : null, X, T2, M, B, W, bi, br, bm));
   if (isBus || isX) {
     var cls = isBus ? o2.cls || BUS_CLASS[ch] || "bus2" : null;
@@ -1337,16 +1337,18 @@ function waveGlyph(ch, prev, X, T2, M, B, W, opt) {
     else o.push(waveHatch(X, x1, T2, B, W, left, null));
     o.push('<path class="' + (isBus ? "waveBusInk" : "waveInk") + '" d="' + bd + '"/>');
   } else if (Core.CLOCK.test(ch)) {
-    var up = /[pPhH]/.test(ch), pl = prev ? railEnd(prev, T2, B) : null, d;
+    var up = /[pPhH]/.test(ch), pl = prev ? railEnd(prev, T2, B) : null, d, edge;
     if (/[pPnN]/.test(ch)) {
       var first = up ? T2 : B, second = up ? B : T2, start = pl === first ? first : second;
       d = "M" + X + "," + start + (start === first ? "" : " V" + first) + " H" + (X + W / 2) + " V" + second + " H" + x1;
+      edge = true;
     } else {
       var lev = up ? T2 : B;
-      d = pl === lev ? "M" + X + "," + lev + " H" + x1 : "M" + X + "," + (up ? B : T2) + " V" + lev + " H" + x1;
+      edge = pl !== lev;
+      d = edge ? "M" + X + "," + (up ? B : T2) + " V" + lev + " H" + x1 : "M" + X + "," + lev + " H" + x1;
     }
     o.push('<path class="waveInk" d="' + d + '"/>');
-    if (/[PHNL]/.test(ch)) o.push(waveArrow(ax, T2, B, up));
+    if (/[PHNL]/.test(ch) && edge) o.push(waveArrow(ax, T2, B, up));
   } else {
     var cy = waveLevel(ch, T2, M, B);
     if (cy === null) cy = M;

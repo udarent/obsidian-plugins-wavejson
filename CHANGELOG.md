@@ -9,6 +9,20 @@ only when they change what you see.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.6] - 2026-11-20
+
+Synced with TimingBench 0.27.3 — two clock rendering fixes.
+
+### Fixed
+
+- **Stray edge arrows on level rows.** A `L.` or `H.` row used to draw an arrow in every
+  continuing cell, so a low period looked like a chain of edges. The arrow now belongs to
+  the edge itself: only the first cell of a level run has one. Continuous clocks such as
+  `P.......` still get an arrow per cell, as upstream does.
+- **Clock cells following a bus or `x` block** no longer draw a slanted cap. Upstream gives
+  them a vertical rising edge (its `pclk` / `nclk` bricks), with the block cut at the cell
+  boundary — the old cap left a triangular notch and shortened the level by 9px.
+
 ## [0.1.5] - 2026-11-20
 
 Synced with TimingBench 0.27.2 — rendering fixes only, no API or layout changes.
@@ -103,6 +117,7 @@ First release.
 - The note is written only when editing ends. Returning to a cached tab keeps
   the uncommitted changes, and they are saved when you exit editing.
 
+[0.1.6]: https://github.com/udarent/obsidian-plugins-wavejson/compare/0.1.5...0.1.6
 [0.1.5]: https://github.com/udarent/obsidian-plugins-wavejson/compare/0.1.4...0.1.5
 [0.1.4]: https://github.com/udarent/obsidian-plugins-wavejson/compare/0.1.3...0.1.4
 [0.1.3]: https://github.com/udarent/obsidian-plugins-wavejson/compare/0.1.2...0.1.3
