@@ -9,6 +9,24 @@ only when they change what you see.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.9] - 2026-11-20
+
+Synced with TimingBench 0.27.8 and 0.27.9.
+
+### Changed
+
+- **Tighter row spacing.** Read-only diagrams use a 30px row pitch instead of 40px, and the
+  editor uses 40px instead of 48px. The same diagram is roughly 25% shorter, so more of it
+  fits in a note before you have to scroll.
+- **Edges were rebuilt around node circles.** The line is clipped at the anchor's circle
+  boundary, arrow and terminal positions derive from that circle's centre and radius, and
+  labels on curved edges sit on the curve instead of floating above it.
+
+### Fixed
+
+- Arrow direction on edge endpoints — the triangle pointed back into the label instead of
+  outward along the line.
+
 ## [0.1.8] - 2026-11-20
 
 Synced with TimingBench 0.27.6 and 0.27.7.
@@ -155,6 +173,7 @@ First release.
 - The note is written only when editing ends. Returning to a cached tab keeps
   the uncommitted changes, and they are saved when you exit editing.
 
+[0.1.9]: https://github.com/udarent/obsidian-plugins-wavejson/compare/0.1.8...0.1.9
 [0.1.8]: https://github.com/udarent/obsidian-plugins-wavejson/compare/0.1.7...0.1.8
 [0.1.7]: https://github.com/udarent/obsidian-plugins-wavejson/compare/0.1.6...0.1.7
 [0.1.6]: https://github.com/udarent/obsidian-plugins-wavejson/compare/0.1.5...0.1.6

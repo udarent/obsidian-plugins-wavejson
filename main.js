@@ -256,6 +256,13 @@ var Core = function() {
     var nn = n > 0 ? n : nd ? nd.length : 0;
     for (var i = 0; i < nn; i++) node.push(nd && i < nd.length ? nd[i] : ".");
     var lane = {
+      // `hasName`：源码里**有没有** name 属性。上游对没有 name 的行不画行名（tutorial 的
+      // `{ node: '...g..h' }` 就是空白行）；我们内部仍用 'sig' 兜底（编辑与写回都要有个值），
+      // 只在**显示**时看这个标记。别拿 namePropRange 判断 —— 它只在 clone 里被复制，解析时并不赋值。
+      hasName: !!prop(item, "name"),
+      // 同理记录「源码里有没有 wave」：整行没有 wave（只有 node 的锚点行）在写回时也不该
+      // 凭空补一个 `wave: ''` —— 那是纯粹的噪声，用户会以为编辑器动了他的源码。
+      hasWave: !!prop(item, "wave"),
       id,
       kind: "signal",
       name: strOf(item, "name", "sig"),
@@ -397,8 +404,8 @@ var Core = function() {
   function emitLane(l) {
     if (l.kind === "spacer") return spacerSrc(l);
     var labels = laneLabels(l), parts = [];
-    parts.push("name: " + quote(l.name));
-    parts.push("wave: " + (l.waveRaw || quote(laneWave(l))));
+    if (l.hasName !== false || l.name !== (l.orig && l.orig.name)) parts.push("name: " + quote(l.name));
+    if (l.waveRaw || l.slots.length || l.hasWave) parts.push("wave: " + (l.waveRaw || quote(laneWave(l))));
     if (needData(l)) parts.push("data: " + (l.dataForm === "str" && labels.every(function(x) {
       return x && !/\s/.test(x);
     }) ? quote(labels.join(" ")) : "[" + qmap(labels) + "]"));
@@ -482,6 +489,8 @@ var Core = function() {
         return {
           id: l.id,
           kind: l.kind,
+          hasName: l.hasName !== false,
+          hasWave: l.hasWave !== false,
           name: l.name,
           phase: l.phase,
           period: l.period,
@@ -748,6 +757,8 @@ var Core = function() {
           fresh = {
             id: aid,
             kind: "signal",
+            hasName: true,
+            hasWave: true,
             name: op.name || "new",
             phase: 0,
             period: 1,
@@ -1050,7 +1061,11 @@ var G = {
   // 量化到 8px 且只向上取整：改名不再逐像素推动波形，又不至于把行名压出画布。
   // 只读态与触摸端不画拖拽把手，左界就只剩 PAD —— 名字短时行名区自然更窄。
   NAME_W: TOUCH ? 96 : 104,
-  ROW_H: TOUCH ? 60 : 48,
+  // 行距（0.27.9 收紧）：桌面 **30**（编辑与只读预览同一个值：带宽 20 / 行距 30 ≈ 2:3，
+  // 与上游 `lib/lane.js` 的 `ys:20 / yo:30` 同密度）。带宽固定 20（半格宽），所以收紧行距
+  // 只是压掉上下留白，波形形状不变。
+  // 触摸端保持 60：手指目标不能跟着压（44px 起步的命中区比密度重要）。
+  ROW_H: TOUCH ? 60 : 30,
   // 表头高度。0.25.0 起表头不再画列号（对齐 WaveDrom：它的图只有行名 + 波形），
   // 只剩「追加列」的虚线框与选中后才出现的列把手 —— 原来为数字留的高度就多余了。
   // 桌面 28 = COL_Y(6) + 虚线框 20 + 2；触摸 44→40 = COL_Y(8) + 框 28 + 4。
@@ -1472,7 +1487,7 @@ var ROW_H = G.ROW_H;
 var TOP = G.TOP;
 var PAD = G.PAD;
 var ACT_W = G.ACT_W;
-var RO_ROW_H = 40;
+var RO_ROW_H = 30;
 var COL_Y = G.COL_Y;
 var XS = G.XS;
 var GSLOT = T ? 30 : 24;
@@ -1493,6 +1508,9 @@ function createShapes(ctx) {
   var SC = "deskEdit";
   function can2(name) {
     return can(name, SC);
+  }
+  function dispName(l) {
+    return l.hasName === false ? "" : l.name;
   }
   var measEl = null, measTxt = null, measKey = "", measW = 0;
   function measure(text, size) {
@@ -1517,7 +1535,7 @@ function createShapes(ctx) {
     for (var i = 0; i < ir.lanes.length; i++) {
       l = ir.lanes[i];
       if (l.kind === "spacer") continue;
-      w = measure(l.name, 12);
+      w = measure(dispName(l), 12);
       if (withMeta) {
         w += measure(" \u03C6" + l.phase, 9) + measure(" T" + l.period, 9);
       }
@@ -1568,6 +1586,7 @@ function createShapes(ctx) {
       shape: tok.replace(/[<>]/g, "")
     };
   }
+  var ARROW_CLEAR = 7;
   var EDGE_SHAPES = {
     "": "spline",
     "~": "spline",
@@ -1579,10 +1598,8 @@ function createShapes(ctx) {
     "~-": "swing2",
     "+": "tee"
   };
-  function arrowTri(tip, from) {
-    var ux = tip.x - from.x, uy = tip.y - from.y, ul = Math.sqrt(ux * ux + uy * uy) || 1;
-    ux /= ul;
-    uy /= ul;
+  function arrowTri(tip, dir) {
+    var ux = dir.x, uy = dir.y;
     var back = 7.5, half = 3.2;
     var abx = tip.x - ux * back, aby = tip.y - uy * back, apx = -uy, apy = ux;
     return "M" + tip.x + "," + tip.y + " L" + (abx + apx * half) + "," + (aby + apy * half) + " L" + (abx - apx * half) + "," + (aby - apy * half) + " z";
@@ -1624,8 +1641,83 @@ function createShapes(ctx) {
     }
     return poly[poly.length - 1];
   }
+  function lerpP(p, q, t) {
+    return { x: p.x + (q.x - p.x) * t, y: p.y + (q.y - p.y) * t };
+  }
+  function dist2(p, q) {
+    var dx = p.x - q.x, dy = p.y - q.y;
+    return dx * dx + dy * dy;
+  }
+  function bezAt(p0, c1, c2, p3, t) {
+    var a1 = lerpP(p0, c1, t), b1 = lerpP(c1, c2, t), c3 = lerpP(c2, p3, t);
+    var a2 = lerpP(a1, b1, t), b2 = lerpP(b1, c3, t);
+    return lerpP(a2, b2, t);
+  }
+  function clipAtCircle(anchor, start, ops, r, fromEnd) {
+    var rr = r * r, i, seg, p0, segs = [], cross = null;
+    for (i = 0; i < ops.length; i++) segs.push(ops[i]);
+    if (!segs.length) return null;
+    var idxs = [];
+    for (i = 0; i < segs.length; i++) idxs.push(i);
+    if (fromEnd) idxs.reverse();
+    var startPt = start, prevPts = [start];
+    for (i = 0; i < segs.length; i++) prevPts.push(segs[i].p);
+    for (var n = 0; n < idxs.length; n++) {
+      var k = idxs[n];
+      seg = segs[k];
+      p0 = prevPts[k];
+      var probe = fromEnd ? p0 : seg.p;
+      if (dist2(probe, anchor) < rr) continue;
+      cross = { k, p0, seg };
+      break;
+    }
+    if (!cross) return null;
+    var seg2 = cross.seg, q0 = cross.p0, t, hit, dir;
+    if (seg2.t === "C") {
+      var lo = 0, hi = 1, mid;
+      var flo = dist2(q0, anchor) - rr;
+      for (var it = 0; it < 40; it++) {
+        mid = (lo + hi) / 2;
+        var fm = dist2(bezAt(q0, seg2.c1, seg2.c2, seg2.p, mid), anchor) - rr;
+        if (fm > 0 === flo > 0) {
+          lo = mid;
+          flo = fm;
+        } else hi = mid;
+      }
+      t = (lo + hi) / 2;
+      hit = bezAt(q0, seg2.c1, seg2.c2, seg2.p, t);
+      var a1 = lerpP(q0, seg2.c1, t), b1 = lerpP(seg2.c1, seg2.c2, t), c3 = lerpP(seg2.c2, seg2.p, t);
+      var a2 = lerpP(a1, b1, t), b2 = lerpP(b1, c3, t);
+      if (fromEnd) {
+        seg2 = { t: "C", c1: a1, c2: a2, p: hit };
+        dir = { x: -(a2.x - hit.x), y: -(a2.y - hit.y) };
+      } else {
+        seg2 = { t: "C", c1: b2, c2: c3, p: seg2.p };
+        dir = { x: -(b2.x - hit.x), y: -(b2.y - hit.y) };
+      }
+    } else {
+      var dx = seg2.p.x - q0.x, dy = seg2.p.y - q0.y;
+      var A = dx * dx + dy * dy;
+      var fx = q0.x - anchor.x, fy = q0.y - anchor.y;
+      var B = 2 * (fx * dx + fy * dy), C = fx * fx + fy * fy - rr;
+      var disc = B * B - 4 * A * C, sq = disc > 0 ? Math.sqrt(disc) : 0;
+      t = 0;
+      if (A > 1e-9) {
+        var t1 = (-B - sq) / (2 * A), t2 = (-B + sq) / (2 * A);
+        t = t1 >= 0 && t1 <= 1 ? t1 : t2 >= 0 && t2 <= 1 ? t2 : 0;
+      }
+      hit = { x: q0.x + dx * t, y: q0.y + dy * t };
+      seg2 = { t: "L", p: fromEnd ? hit : seg2.p };
+      dir = fromEnd ? { x: dx, y: dy } : { x: -dx, y: -dy };
+    }
+    var gl = Math.sqrt(dir.x * dir.x + dir.y * dir.y) || 1;
+    dir = { x: dir.x / gl, y: dir.y / gl };
+    var kept = fromEnd ? segs.slice(0, cross.k) : segs.slice(cross.k + 1);
+    return { start: fromEnd ? start : hit, ops: fromEnd ? kept.concat([seg2]) : [seg2].concat(kept), at: hit, dir };
+  }
   function opsD(a, ops) {
     var d = "M" + a.x + "," + a.y, i, o;
+    if (!ops.length) return "";
     for (i = 0; i < ops.length; i++) {
       o = ops[i];
       d += o.t === "C" ? " C" + o.c1.x + "," + o.c1.y + " " + o.c2.x + "," + o.c2.y + " " + o.p.x + "," + o.p.y : " L" + o.p.x + "," + o.p.y;
@@ -1656,22 +1748,26 @@ function createShapes(ctx) {
   }
   function edgePath(a, b, shape) {
     var g = edgeSegs(a, b, shape);
-    var poly = polyOf(a, g.ops), mk = polyMarks(poly), total = mk[mk.length - 1].at;
-    var back = Math.min(8, total / 2);
+    var end = clipAtCircle(b, a, g.ops, ARROW_CLEAR, true);
+    var clipped = end || { start: a, ops: g.ops, at: b, dir: null };
+    var start = clipAtCircle(a, clipped.start, clipped.ops, ARROW_CLEAR, false);
+    var path = start || clipped;
+    var poly = polyOf(path.start, path.ops), mk = polyMarks(poly), total = mk[mk.length - 1].at;
     return {
-      d: opsD(a, g.ops),
+      d: opsD(path.start, path.ops),
+      // 可见线与命中带共用：两端都停在节点圆上
       kind: g.kind,
       mid: polyAt(poly, mk, total / 2),
-      endFrom: polyAt(poly, mk, total - back),
-      startFrom: polyAt(poly, mk, back)
+      endTip: end && end.at,
+      endDir: end && end.dir,
+      startTip: start && start.at,
+      startDir: start && start.dir
     };
   }
-  function edgeLabelAt(a, b, g) {
-    var mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
-    if (g.kind === "hv") return { x: b.x - 8, y: my, anchor: "end" };
-    if (g.kind === "vh") return { x: a.x + 8, y: my, anchor: "start" };
-    if (g.kind === "hvh") return { x: mx + 8, y: my, anchor: "start" };
-    return { x: g.mid.x, y: g.mid.y - 7, anchor: "middle" };
+  function edgeLabelAt(g) {
+    if (g.kind !== "spline" && g.kind !== "swing1" && g.kind !== "swing2")
+      return { x: g.mid.x, y: g.mid.y, anchor: "middle" };
+    return { x: g.mid.x, y: g.mid.y, anchor: "middle" };
   }
   function edgeLabelSvg(at, text, taken) {
     var w = Math.max(FS_EDGE, textEm(text) * FS_EDGE), h = FS_EDGE;
@@ -1719,8 +1815,8 @@ function createShapes(ctx) {
       if (!a || !b) return;
       var g = edgePath(a, b, pe.shape), paths = [];
       paths.push('<path d="' + g.d + '" fill="none" stroke="var(--accent)" stroke-width="1" opacity=".75" pointer-events="none"/>');
-      if (pe.end) paths.push('<path d="' + arrowTri(b, g.endFrom) + '" fill="var(--accent)" opacity=".85" pointer-events="none"/>');
-      if (pe.start) paths.push('<path d="' + arrowTri(a, g.startFrom) + '" fill="var(--accent)" opacity=".85" pointer-events="none"/>');
+      if (pe.end && g.endTip) paths.push('<path d="' + arrowTri(g.endTip, g.endDir) + '" fill="var(--accent)" opacity=".85" pointer-events="none"/>');
+      if (pe.start && g.startTip) paths.push('<path d="' + arrowTri(g.startTip, g.startDir) + '" fill="var(--accent)" opacity=".85" pointer-events="none"/>');
       if (g.kind === "tee") {
         var ux = b.x - a.x, uy = b.y - a.y, ul = Math.sqrt(ux * ux + uy * uy) || 1;
         var nx = -uy / ul * 5, ny = ux / ul * 5;
@@ -1728,7 +1824,7 @@ function createShapes(ctx) {
       }
       paths.push('<path d="' + g.d + '" fill="none" stroke="rgba(0,0,0,0.001)" stroke-width="' + (T ? 20 : 8) + '" pointer-events="' + (state.linkMode ? "none" : "stroke") + '"/>');
       var inner = paths.join("");
-      if (pe.label) inner += edgeLabelSvg(edgeLabelAt(a, b, g), cut(pe.label, 18), taken);
+      if (pe.label) inner += edgeLabelSvg(edgeLabelAt(g), cut(pe.label, 18), taken);
       o.push('<g class="edgeArc" data-eidx="' + i + '" role="button" aria-label="Edit edge ' + esc(String(e)) + '">' + inner + "</g>");
     });
     return o.join("") + marks.join("");
@@ -1878,7 +1974,7 @@ function createShapes(ctx) {
           metaHit = '<rect class="laneMetaHit" data-act="phase" data-lane="' + l.id + '" x="' + mPL.toFixed(1) + '" y="' + (y + 1) + '" width="' + (mP - mPL).toFixed(1) + '" height="' + (RH - 2) + '" fill="transparent" pointer-events="all" style="cursor:pointer"/><rect class="laneMetaHit" data-act="period" data-lane="' + l.id + '" x="' + (mP - 1).toFixed(1) + '" y="' + (y + 1) + '" width="' + (mR - mP + 1).toFixed(1) + '" height="' + (RH - 2) + '" fill="transparent" pointer-events="all" style="cursor:pointer"/>';
         }
       }
-      o.push('<text class="laneName" data-lane="' + l.id + '" x="' + (NAME_W - 6) + '" y="' + yM + '" text-anchor="end" dominant-baseline="central" font-size="' + FS_NAME + '" fill="var(--ink)"><tspan class="laneNameText" data-act="name">' + esc(l.name) + "</tspan>" + meta + "</text>");
+      o.push('<text class="laneName" data-lane="' + l.id + '" x="' + (NAME_W - 6) + '" y="' + yM + '" text-anchor="end" dominant-baseline="central" font-size="' + FS_NAME + '" fill="var(--ink)"><tspan class="laneNameText" data-act="name">' + esc(dispName(l)) + "</tspan>" + meta + "</text>");
       if (metaHit) o.push(metaHit);
       var P = lanePeriod(l), sh = laneShift(l), cw = P * CELL, chars = laneChars(l, N);
       var clipId = sh > 0 ? "lclip-" + l.id : null;
@@ -1901,8 +1997,10 @@ function createShapes(ctx) {
         if (pblock) gopt.psame = !ptAt(i);
         if (pbus) gopt.pcls = busClassOf(prevCh);
         if (Core.BUS.test(w)) gopt.cls = busClassOf(w);
-        var glyph = waveGlyph(w, prevCh, x0, yT, yM, yB, cw, gopt);
-        o.push(s ? glyph : '<g class="tailSlot" role="img" aria-label="Undefined period \u2014 tap to extend">' + glyph + "</g>");
+        if (l.slots.length) {
+          var glyph = waveGlyph(w, prevCh, x0, yT, yM, yB, cw, gopt);
+          o.push(s ? glyph : '<g class="tailSlot" role="img" aria-label="Undefined period \u2014 tap to extend">' + glyph + "</g>");
+        }
         if (s && s.gap) o.push(waveGap(x0, yT, yB));
         var rx = Math.max(x0 + 1, XS);
         var ccur = state.phaseEdit && state.phaseEdit.lane === l.id ? "ew-resize" : "crosshair";
