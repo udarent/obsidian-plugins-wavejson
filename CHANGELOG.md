@@ -9,6 +9,21 @@ only when they change what you see.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.8] - 2026-11-20
+
+Synced with TimingBench 0.27.6 and 0.27.7.
+
+### Changed
+
+- **`config.hscale` widens cells without inflating the waveform band.** The band height is
+  now anchored to the base cell width, so a diagram with `hscale: 2` gets wider but keeps
+  its row proportions. Before, the band grew with hscale and rows looked stretched.
+
+### Fixed
+
+- Half a pixel of column grid could show through the wedge where an `x` block meets a
+  transition. The mask now covers one extra pixel on the right edge.
+
 ## [0.1.7] - 2026-11-20
 
 Synced with TimingBench 0.27.4 and 0.27.5.
@@ -140,6 +155,7 @@ First release.
 - The note is written only when editing ends. Returning to a cached tab keeps
   the uncommitted changes, and they are saved when you exit editing.
 
+[0.1.8]: https://github.com/udarent/obsidian-plugins-wavejson/compare/0.1.7...0.1.8
 [0.1.7]: https://github.com/udarent/obsidian-plugins-wavejson/compare/0.1.6...0.1.7
 [0.1.6]: https://github.com/udarent/obsidian-plugins-wavejson/compare/0.1.5...0.1.6
 [0.1.5]: https://github.com/udarent/obsidian-plugins-wavejson/compare/0.1.4...0.1.5

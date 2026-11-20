@@ -1040,8 +1040,9 @@ function detect() {
 var TOUCH = detect();
 
 // ../TimingBench/src/editor/geometry.js
+var CELL0 = TOUCH ? 48 : 38;
 var G = {
-  CELL: TOUCH ? 48 : 38,
+  CELL: CELL0,
   // 行名区宽度与波形起点在运行时**按内容自适应**（shapes.js 每次 redraw 重算并写回
   // G.NAME_W / G.XS），这里的值只是首帧兜底。算法：
   //   NAME_W = 8·⌈clamp(64, 上限, leftBound + 最宽行名 + 16) / 8⌉，leftBound = PAD +（桌面编辑态 ? 18 : 0）
@@ -1097,7 +1098,7 @@ function cellGeo(l, tick) {
   return { x0, w, cx: x0 + w / 2 };
 }
 function bandOf(rowH) {
-  var h = 2 * Math.round(G.CELL / 4), t = Math.round((rowH - h) / 2);
+  var h = 2 * Math.round(CELL0 / 4), t = Math.round((rowH - h) / 2);
   return { t, m: t + h / 2, b: t + h };
 }
 function splineCtl(a, b) {
@@ -1328,7 +1329,7 @@ function waveGlyph(ch, prev, X, T2, M, B, W, opt) {
       o.push('<path class="waveBusInk" d="M' + (X + bi) + "," + T2 + " H" + (x1 - bi) + " M" + (X + bi) + "," + B + " H" + (x1 - bi) + " M" + X + "," + M + " L" + (X + bi) + "," + T2 + " M" + X + "," + M + " L" + (X + bi) + "," + B + " M" + (x1 - bi) + "," + T2 + " L" + x1 + "," + M + " L" + (x1 - bi) + "," + B + '"/>');
       return '<g class="waveGlyph" data-w="' + esc(ch) + '" pointer-events="none">' + o.join("") + "</g>";
     }
-    if (isX) o.push('<rect class="waveHatchBg" x="' + X + '" y="' + T2 + '" width="' + W + '" height="' + (B - T2) + '" fill="var(--bg)" stroke="none" pointer-events="none"/>');
+    if (isX) o.push('<rect class="waveHatchBg" x="' + X + '" y="' + T2 + '" width="' + (W + 1) + '" height="' + (B - T2) + '" fill="var(--bg)" stroke="none" pointer-events="none"/>');
     var kind = o2.pblock ? o2.psame ? "join" : "cross" : prev ? "enter" : "edge";
     var ra = kind === "enter" ? railEnd(prev, T2, B) : null;
     if (kind === "enter" && ra !== T2 && ra !== B) kind = "mid";
