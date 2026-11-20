@@ -1,6 +1,6 @@
 {
   "name": "obsidian-wavejson",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "private": true,
   "description": "Render WaveJSON timing diagrams in Obsidian notes and edit them in place.",
   "keywords": [
